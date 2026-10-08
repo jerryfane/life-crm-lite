@@ -136,10 +136,12 @@ test("the tricky sheet keeps dates, extras, Profile name, json: settings and the
   assert.equal(d.steps[1].id, "s2"); // numbered among filled rows: the empty row doesn't count
 });
 
-test("sheet ids come from https://docs.google.com/spreadsheets/d/<id> links or bare ids only", () => {
+test("sheet ids come from https://docs.google.com/spreadsheets[/u/<n>]/d/<id> links or bare ids only", () => {
   assert.equal(LiteSource.sheetIdOf(URL), ID);
   assert.equal(LiteSource.sheetIdOf(`https://docs.google.com/spreadsheets/d/${ID}`), ID);
   assert.equal(LiteSource.sheetIdOf(` https://docs.google.com/spreadsheets/d/${ID}?usp=sharing#gid=0 `), ID);
+  assert.equal(LiteSource.sheetIdOf(`https://docs.google.com/spreadsheets/u/0/d/${ID}/edit#gid=0`), ID);
+  assert.equal(LiteSource.sheetIdOf(`https://docs.google.com/spreadsheets/u/12/d/${ID}`), ID);
   assert.equal(LiteSource.sheetIdOf(ID), ID);
   for (const bad of ["", null, "https://example.com/x", "https://docs.google.com/spreadsheets/d/EXAMPLE-maya",
     `https://evil.example/spreadsheets/d/${ID}`,
@@ -151,6 +153,8 @@ test("sheet ids come from https://docs.google.com/spreadsheets/d/<id> links or b
     `https://docs.google.com/document/d/${ID}`,
     `https://docs.google.com/spreadsheets/d/${ID}.evil`,
     "https://docs.google.com/spreadsheets/d/short123",
+    `https://docs.google.com/spreadsheets/u/x/d/${ID}`, `https://docs.google.com/spreadsheets/u//d/${ID}`,
+    `https://docs.google.com/spreadsheets/u/0/${ID}`, `https://docs.google.com.evil.example/spreadsheets/u/0/d/${ID}`,
     `${ID}/../x`]) {
     assert.equal(LiteSource.sheetIdOf(bad), "", String(bad));
   }
