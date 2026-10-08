@@ -80,6 +80,95 @@ class UnknownFields(unittest.TestCase):
         self.assertEqual(back["lists"][0]["columns"], MAYA["lists"][0]["columns"])
 
 
+class CollidingKeys(unittest.TestCase):
+    def test_reviewer_case_row_keys_colliding_with_a_column_or_each_other_are_invalid(self):
+        # Issue #16: these used to pass validation, then 'PROGRAM' overwrote 'program' and both extras vanished.
+        data = maya()
+        row = data["lists"][0]["rows"][0]
+        row["PROGRAM"] = "INJECTED"
+        row["visa type"] = "J-1"
+        row["visa_type"] = "H-1B"
+        problems = convert.validate(data)
+        self.assertTrue(any("'program', 'PROGRAM'" in p for p in problems), problems)
+        self.assertTrue(any("'visa type', 'visa_type'" in p for p in problems), problems)
+
+    def test_same_extra_spelled_differently_on_two_rows_is_invalid(self):
+        data = maya()
+        data["lists"][0]["rows"][0]["Visa"] = "J-1"
+        data["lists"][0]["rows"][1]["visa"] = "J-1"
+        self.assertTrue(any("'Visa', 'visa'" in p for p in convert.validate(data)))
+
+    def test_row_key_that_is_empty_as_a_header_is_invalid(self):
+        data = maya()
+        data["lists"][0]["rows"][0]["(note)"] = "x"
+        self.assertTrue(any("'(note)' is empty" in p for p in convert.validate(data)))
+
+    def test_list_columns_colliding_with_each_other_are_invalid(self):
+        for columns in (["program", "Program"], ["visa type", "visa_type"], ["program", "program"]):
+            data = maya()
+            data["lists"][0]["columns"] = columns
+            data["lists"][0]["rows"] = [{c: "x" for c in columns}]
+            self.assertTrue(any("share one sheet column" in p or "listed twice" in p
+                                for p in convert.validate(data)), columns)
+
+    def test_distinct_extras_on_different_rows_stay_valid(self):
+        data = maya()
+        data["lists"][0]["rows"][0]["contact"] = "office"
+        data["lists"][0]["rows"][1]["contact"] = "dean"
+        data["lists"][0]["rows"][2]["visa"] = "J-1"
+        self.assertEqual(convert.validate(data), [])
+        self.assertEqual(convert.diff(data, round_trip(data)), [])
+
+
+class CollidingFields(unittest.TestCase):
+    def test_step_title_and_person_role_extras_are_invalid(self):
+        # Before: valid, then 'Title' overwrote the step's title and 'Role' the person's role, and both vanished.
+        data = maya()
+        data["steps"][0]["Title"] = "INJECTED"
+        data["people"][0]["Role"] = "X"
+        problems = convert.validate(data)
+        self.assertIn("step s1 'Urology rotation (Surgery II)': field 'Title' would share the sheet column 'title'; "
+                      "that column already holds another value, so rename it", problems)
+        self.assertIn("person Dr. Navarro: field 'Role' would share the sheet column 'role'; "
+                      "that column already holds another value, so rename it", problems)
+
+    def test_extras_on_columns_that_hold_or_steer_data_are_invalid(self):
+        data = maya()
+        data["areas"][0]["description"] = "x"   # the area's `why` goes there
+        data["steps"][0]["timeline"] = "x"      # the step's `area` goes there
+        data["lists"][0]["tab"] = "Other"       # says which tab holds the rows
+        data["lists"][1]["fields"] = "type"     # says which headers are the list's columns
+        problems = convert.validate(data)
+        for where, field in [("area school", "description"), ("step s1", "timeline"), ("list programs", "tab"),
+                             ("list papers", "fields")]:
+            self.assertTrue(any(p.startswith(where) and f"field '{field}'" in p for p in problems), (where, problems))
+
+    def test_open_column_needs_its_exact_name(self):
+        data = maya()
+        data["steps"][0]["Track"] = "Rotations"
+        self.assertTrue(any("write it as 'track' or rename it" in p for p in convert.validate(data)))
+
+    def test_extras_spelled_two_ways_across_objects_are_invalid(self):
+        data = maya()
+        data["steps"][0]["Visa"] = "J-1"
+        data["steps"][1]["visa"] = "J-1"
+        self.assertTrue(any(p.startswith("steps: 'Visa', 'visa' would share one sheet column")
+                            for p in convert.validate(data)))
+
+    def test_full_kit_columns_with_their_exact_names_stay_valid(self):
+        data = maya()
+        data["areas"][0]["link"] = "https://drive.example/folder"
+        data["areas"][1]["group"] = "Career"
+        data["steps"][0]["track"] = "Rotations"
+        data["steps"][1]["progress"] = 40
+        data["steps"][2]["kind"] = "milestone"
+        data["lists"][0]["icon"] = "building"
+        data["lists"][1]["group"] = "Work"
+        data["people"][0]["email"] = "n@example.com"
+        self.assertEqual(convert.validate(data), [])
+        self.assertEqual(convert.diff(data, round_trip(data)), [])
+
+
 class Formulas(unittest.TestCase):
     def test_header_and_cells_starting_with_equals_stay_text(self):
         data = maya()

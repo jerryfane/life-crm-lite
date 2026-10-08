@@ -13,6 +13,12 @@ The page and the viewer use the **data block** ([data-contract.md](data-contract
 - `show` is `yes` on every row the lite skill writes. In the full kit, `no` hides a row.
 - Columns the lite skill doesn't use (`group`, `track`, `progress`, `phase`, `pin`, `icon`, …) stay in the header row and are left empty. The full kit uses them; the converter keeps whatever is in them.
 - A column or Settings key that isn't listed here is kept: the converter carries it over to the data block as an extra field and back (the contract's "unknown fields are kept and ignored"). Extra fields of areas, steps, lists and people become extra columns on their tab; extra fields of the data block itself and of `sheet` go in Settings (below); extra fields of list rows become extra columns on the list's tab (see "List tabs").
+- An extra field of an area, step, list or person must not land in a column that already holds something. Headers are compared the way life-crm does: lowercase, spaces as `_`, anything from `(` on dropped. So:
+  - it may fill one of these full-kit columns only with exactly the column's name: Timelines `group`, `link`, `show`, `order`; Steps `track`, `kind`, `progress`, `phase`, `pin`, `show`; Collections `layout`, `status_field`, `statuses`, `date_field`, `group`, `icon`, `description`, `empty_text`, `show`, `order`. (`Track` is refused: write `track`.) One exception to "kept": when the field's value is exactly what the converter writes there anyway (`kind: task` on a step with a date, `show: yes`), the field doesn't come back from the sheet, since it adds nothing;
+  - any other column of the tab is refused, because it holds a data-block value or tells the converter how to read the sheet: `Title` on a step would overwrite the step's title, `Role` on a person their role, `tab` or `fields` on a list where its rows are;
+  - two extra fields of the same tab that differ only in case, spaces or brackets (`Visa` on one step, `visa` on another) are refused, as is a field that is empty as a header (`(note)`).
+
+  `tools/convert.py check` names each problem (`to-xlsx` prints them as warnings); rename the field.
 
 ## Tabs, in this order
 
@@ -115,7 +121,9 @@ The last row is always the People page:
 
 Named after the list (`Subscriptions`, `Programs`…), headers = `lists[].columns` in order, one row per item. If a list name clashes with a tab above, the tab gets ` list` added (`People list`).
 
-Column names must be unique, not empty, and contain no `,` or `|` (life-crm splits `fields` on them). A list needs at least one column.
+Column names must not be empty and contain no `,` or `|` (life-crm splits `fields` on them). A list needs at least one column.
+
+The sheet compares headers the way life-crm does: lowercase, spaces as `_`, anything from `(` on dropped. So within one list, the column names and the extra row fields (below) must all stay different after that: `program` and `PROGRAM`, or `visa type` and `visa_type`, would share one sheet column, and one value would overwrite the other. `tools/convert.py check` (and `to-xlsx`, as a warning) names any such pair; rename one of them. A row field that is empty after that rule (`(note)`) is refused too.
 
 A list row may have fields that aren't in `columns`: each becomes an extra column after the list's own columns, filled only on the rows that have it. On reading, the list's columns are the ones named in its Collections row (`title_field` + `fields`); any other header on the tab is an extra field, kept on the rows where the cell isn't empty. (A sheet whose Collections row has neither `title_field` nor `fields` reads every header as a column.)
 
