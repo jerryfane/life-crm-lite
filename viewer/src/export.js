@@ -145,5 +145,23 @@ var LiteExport = (function () {
     t.forEach(function (s, i) { files.push(["xl/worksheets/sheet" + (i + 1) + ".xml", sheet(s.rows)]); });
     return zip(files);
   }
-  return { xlsx: xlsx, tabs: tabs };
+  // Names in one list that would land in the same sheet column, so one would overwrite the other
+  // (same rule and wording as key_collisions in tools/convert.py). The viewer won't export until they're renamed.
+  function problems(d) {
+    var out = [];
+    arr(d.lists).forEach(function (l) {
+      var cols = Array.isArray(l.columns) ? l.columns.map(v) : [], names = new Map(), pre = "list " + v(l.id) + ": ";
+      cols.concat.apply(cols, arr(l.rows).map(Object.keys)).forEach(function (n) {
+        var k = hk(n); if (!names.has(k)) names.set(k, []);
+        if (names.get(k).indexOf(n) < 0) names.get(k).push(n);
+      });
+      (names.get("") || []).forEach(function (n) { if (cols.indexOf(n) < 0) out.push(pre + "row key '" + n + "' is empty as a sheet header"); });
+      names.forEach(function (same, k) {
+        if (k && same.length > 1) out.push(pre + same.map(function (n) { return "'" + n + "'"; }).join(", ") + " would share one sheet column ('" + k + "'); rename them so they differ in more than case, spaces or anything in brackets");
+      });
+      cols.filter(function (c, i) { return cols.indexOf(c) === i && cols.lastIndexOf(c) !== i; }).forEach(function (c) { out.push(pre + "column '" + c + "' is listed twice"); });
+    });
+    return out;
+  }
+  return { xlsx: xlsx, tabs: tabs, problems: problems };
 })();

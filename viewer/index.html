@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
 <meta charset="utf-8">
-<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'sha256-k9LfID+HDrccNgWKDfbbidGribPWYucHCtdU7vlk8zE='; style-src 'unsafe-inline'; img-src data:; base-uri 'none'; form-action 'none'">
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'sha256-4q1CMxhXeaVz3+zeh232IRuUoSrTW28bkr/N2KBXK0Q='; style-src 'unsafe-inline'; img-src data:; base-uri 'none'; form-action 'none'">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>life-crm lite viewer</title>
 <link rel="icon" href="data:,">
@@ -468,7 +468,23 @@ t.map(function (s, i) { return '<Override PartName="/xl/worksheets/sheet' + (i +
 t.forEach(function (s, i) { files.push(["xl/worksheets/sheet" + (i + 1) + ".xml", sheet(s.rows)]); });
 return zip(files);
 }
-return { xlsx: xlsx, tabs: tabs };
+function problems(d) {
+var out = [];
+arr(d.lists).forEach(function (l) {
+var cols = Array.isArray(l.columns) ? l.columns.map(v) : [], names = new Map(), pre = "list " + v(l.id) + ": ";
+cols.concat.apply(cols, arr(l.rows).map(Object.keys)).forEach(function (n) {
+var k = hk(n); if (!names.has(k)) names.set(k, []);
+if (names.get(k).indexOf(n) < 0) names.get(k).push(n);
+});
+(names.get("") || []).forEach(function (n) { if (cols.indexOf(n) < 0) out.push(pre + "row key '" + n + "' is empty as a sheet header"); });
+names.forEach(function (same, k) {
+if (k && same.length > 1) out.push(pre + same.map(function (n) { return "'" + n + "'"; }).join(", ") + " would share one sheet column ('" + k + "'); rename them so they differ in more than case, spaces or anything in brackets");
+});
+cols.filter(function (c, i) { return cols.indexOf(c) === i && cols.lastIndexOf(c) !== i; }).forEach(function (c) { out.push(pre + "column '" + c + "' is listed twice"); });
+});
+return out;
+}
+return { xlsx: xlsx, tabs: tabs, problems: problems };
 })();
 (function () {
   "use strict";
@@ -523,6 +539,8 @@ return { xlsx: xlsx, tabs: tabs };
     say("Downloaded " + slug() + ".html. Open it any time, even offline.");
   };
   $("vexp").onclick = function () {
+    var p = LiteExport.problems(data);
+    if (p.length) return say("I can't make your sheet yet: some names would land in the same sheet column, and one would overwrite the other. Ask your AI to rename them, then paste the new data block. " + p.join(". ") + ".");
     save(LiteExport.xlsx(data), slug() + ".xlsx");
     say("Downloaded " + slug() + ".xlsx, your life-crm sheet. To keep it in Google Drive: open drive.google.com, click New, then File upload, and choose this file. Then open it with Google Sheets (File > Save as Google Sheets).");
   };
