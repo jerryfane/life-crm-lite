@@ -10,6 +10,6 @@ What the person gets: a Google Drive folder "<Name>'s life CRM" with the sheet (
 - `published`: Jerry publishes one dashboard; replace `DASHBOARD_LINK` in step 6 with its link. Each person opens it **signed in to claude.ai**, pastes their sheet link once (kept in their own storage), and it reads the sheet through their own Google Sheets connector.
 - `copy`: each person's Claude makes the dashboard from the Project file `dashboard.html`, replacing only its data block, and publishes it with the capabilities in [dashboard/CAPABILITIES.md](../dashboard/CAPABILITIES.md).
 
-The Google Drive connector may offer no tool to create folders or files, so the skill has the person make the folder and subfolders in Drive (a few clicks) and move the sheet there with **File > Move**.
+The Google Drive connector may offer no tool to create folders or files, and the Google Sheets connector has none to create a spreadsheet. So the person makes the folder and subfolders in Drive (a few clicks) and copies the life CRM template into it (**Make a copy**, `TEMPLATE_URL` in step 5, still pending); Claude then fills the copy with `update_values`.
 
 Simulation: `python3 tools/simulate.py` (see the file's header).

@@ -61,9 +61,9 @@ You need both connectors, **Google Drive** (folders, files) and **Google Sheets*
 1. Open **Customize > Connectors** (claude.ai/customize/connectors).
 2. Find **Google Drive**, click **Connect**, sign in to Google and allow access; the button then says **Disconnect**. Do the same for **Google Sheets**, with the same Google account.
 3. Back in this chat: click **+** (bottom left of the message box) > **Connectors** > switch on **Google Drive** and **Google Sheets**.
-4. For the dashboard: **Customize > Connectors** > **Google Sheets** > **Tool permissions**: set the tools that read and update values to **Always allow**.
+4. For the dashboard: **Customize > Connectors** > **Google Sheets** > **Tool permissions**: set **get_values**, **update_values** and **get_spreadsheet** to **Always allow**.
 
-**Connected:** find out which Google account it is (from the connection or a file it shows; else ask). Then ask: "I'll save it in <email>; right? 1. Yes · 2. No, use another account".
+**Connected:** find out which Google account it is (else ask). Then ask: "I'll save it in <email>; right? 1. Yes · 2. No, use another account".
 To switch: **Customize > Connectors** > **Google Drive** > **Disconnect**, then **Connect** with the other account; same for **Google Sheets**.
 
 Approval prompts: tell them to click **Allow** (or **Always allow**).
@@ -74,14 +74,16 @@ The Drive connector may have no tool to create folders or files. If you have one
 
 1. **Folder:** "Open drive.google.com, click **New** > **New folder**, type **<Name>'s life CRM**, click **Create**." (Already have one? Ask: use it, or make a new one.)
 2. **Subfolders:** "Double-click it to open it, then **New** > **New folder** again for each: <area names>." One per area, named like the area; more only if they named a kind of document ("Taxes").
-3. **The sheet:** with Google Sheets, create a new **Google Sheet** named **"<Name>'s life CRM"** and fill it exactly as in **The sheet** below.
-4. **Read it back:** read every tab; check tab names, header rows, row counts, and that dates stayed `YYYY-MM-DD` text. Fix and read again.
-5. **Into the folder:** if a Drive tool can move it, do; else: "Open your sheet: <sheet link>. Click **File** > **Move**, pick **<Name>'s life CRM**, click **Move**."
+3. **The sheet:** if you have a tool that creates a spreadsheet, create **"<Name>'s life CRM"** in the folder. Otherwise they copy the life CRM template:
+   TEMPLATE_URL: <pending>
+   "Open <TEMPLATE_URL>. In Google's **Copy document** window, name it **<Name>'s life CRM**, pick your **<Name>'s life CRM** folder, click **Make a copy**, then paste me the new sheet's link."
+4. **Fill it** with **update_values** (`values` is a list of rows), exactly as in **The sheet** below. Tabs and headers exist; write from row 2. A list tab: add it with **update_spreadsheet** (addSheet) if you can; else keep the list in Collections only and tell them.
+5. **Read it back** with **get_values**: tab names, header rows, row counts, dates still `YYYY-MM-DD` text. An empty range returns no `values` key. Fix and read again.
 6. **GUIDE.md:** fill the Project file **GUIDE.md** from their real sheet (every `<…>` replaced, nothing invented). If a Drive tool can create files, save it in the folder; else make it a downloadable file **GUIDE.md** and say: "Download GUIDE.md and drag it into your **<Name>'s life CRM** folder."
 
 Then: "Done: your sheet (N areas, N steps, N lists, N people), a folder per area for documents, and GUIDE.md, my notes." In the same message, start step 6.
 
-If creating the Google Sheet fails, say so, give them their data block in one `json` code block for https://life-crm-lite.jerryfane.com/viewer/, and try again.
+If the sheet can't be made or filled, say so, give them their data block in one `json` code block for https://life-crm-lite.jerryfane.com/viewer/, and try again.
 
 ## 6. The dashboard
 
@@ -102,7 +104,7 @@ Link: DASHBOARD_LINK (Jerry fills it in). It reads only the opener's own sheet.
 You make it here from the Project file **dashboard.html** (can't see it: say so; their sheet is ready, Jerry helps).
 
 - Copy dashboard.html **exactly, every character**. Replace **only** the JSON inside `<script id="data" type="application/json">` with their data block (`sheet.url` = their sheet link, `sheet.account` = their email; every `<` as `\u003c`). Never shorten or rewrite anything else; never add a script tag.
-- First read their sheet once with Google Sheets, to learn the real tool names (publishing fails with an empty tool list). Then show it as an HTML artifact published with exactly these capabilities (dashboard/CAPABILITIES.md), the three tool names filled in: `{"sample": {}, "db": {}, "user": {}, "mcp": {"servers": [{"server": "Google Sheets", "tools": ["<read values tool>", "<write values tool>", "<spreadsheet info tool>"]}]}}`
+- Show it as an HTML artifact published with exactly these capabilities (dashboard/CAPABILITIES.md): `{"sample":{},"db":{},"user":{},"mcp":{"servers":[{"server":"Google Sheets","tools":["get_values","update_values","get_spreadsheet"]}]}}`
 - Then: "This is your dashboard; it reads your sheet each time you open it. Click **Allow** when asked."
 - Ask what they see: name, timeline, matrix.
 
