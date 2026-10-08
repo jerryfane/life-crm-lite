@@ -1,28 +1,26 @@
 // LiteBridge: the only code that knows the claude.ai artifact runtime (docs/artifact-api.md). One entry point,
 // `await window.claude.use(name)`, which gives a capability declared at publish (dashboard/CAPABILITIES.md) or
-// null when this view can't run it (signed out of claude.ai). After a test shows the real Google Sheets tool names
-// and arguments, change only CONFIG.
+// null when this view can't run it (signed out of claude.ai). The Google Sheets tools and their inputs are the
+// ones seen working in mini-test round 2; if the connector changes, change only CONFIG.
 var LiteBridge = (function (w) {
   "use strict";
   var CONFIG = {
-    SHEETS_SERVER: "Google Sheets", // connector display names, as in Customize > Connectors
-    DRIVE_SERVER: "Google Drive",   // not called today: in round 1 Drive offered no read tool
-    SHEETS_TOOLS: { read: "?", write: "?", info: "?" }, // "?" = not known yet: calls fail with a clear error
-    // Arguments of each Sheets tool (Google's Sheets MCP shape until a test shows otherwise).
+    SHEETS_SERVER: "Google Sheets", // the connector's display name, as declared in the mcp capability
+    SHEETS_TOOLS: { read: "get_values", write: "update_values", info: "get_spreadsheet" },
     SHEETS_ARGS: {
+      // -> {properties: {title}, sheets: [{properties: {sheetId, title}}]}; always pass fields (else it's large)
       info: function (id) {
-        var c = "sheets.data.rowData.values.";
-        return { spreadsheetId: id, includeGridData: true, fields: ["sheets.properties.title", "sheets.data.startRow",
-          "sheets.data.startColumn", c + "formattedValue", c + "effectiveValue", c + "effectiveFormat.numberFormat.type"] };
+        return { spreadsheetId: id, fields: ["properties.title", "sheets.properties.sheetId", "sheets.properties.title"] };
       },
+      // -> {range, values: [[…]…]}: rows without their trailing empty cells; no `values` at all when empty
       read: function (id, range) { return { spreadsheetId: id, range: range }; },
+      // values is always a list of rows -> {updatedRange, updatedRows, updatedColumns, updatedCells, status}
       write: function (id, range, values) { return { spreadsheetId: id, range: range, values: values }; }
     }
   };
   var SIGN_IN = "Sign in to claude.ai in this browser, then reload.";
   var CONNECT = "Connect Google Sheets to Claude (claude.ai, Customize > Connectors), then reload.";
   var OUTSIDE = "This works only when the page is open in claude.ai.";
-  var NOT_READY = "Your sheet can't be read yet: the connector details are being set up.";
 
   function create(env) {
     var claude = env.claude, local = env.localStorage, mem = {}, uses = {};
@@ -48,16 +46,8 @@ var LiteBridge = (function (w) {
       return (await use("user")) && (await use("db")) ? "ok" : "signed-out";
     }
 
-    // True when CONFIG names the tool for op ("info", "read", "write"); "?" means not known yet.
-    function ready(op) {
-      var tool = CONFIG.SHEETS_TOOLS[op];
-      return !!tool && tool !== "?";
-    }
-
     // op: "info" (id), "read" (id, range) or "write" (id, range, values); returns the tool's payload.
-    // Never calls a tool that isn't known yet.
     async function sheets(op) {
-      if (!ready(op)) throw new Error(NOT_READY);
       var tool = CONFIG.SHEETS_TOOLS[op];
       var mcp = await use("mcp"), args = CONFIG.SHEETS_ARGS[op].apply(null, [].slice.call(arguments, 1));
       if (!mcp) throw new Error(!present ? OUTSIDE : (await runtime()) === "ok" ? CONNECT : SIGN_IN);
@@ -112,10 +102,10 @@ var LiteBridge = (function (w) {
       mem[key] = value;
       return true;
     }
-    return { runtime: runtime, ready: ready, sheets: sheets, complete: complete, get: get, set: set };
+    return { runtime: runtime, sheets: sheets, complete: complete, get: get, set: set };
   }
 
-  var bridge = { create: create, CONFIG: CONFIG, SIGN_IN: SIGN_IN, NOT_READY: NOT_READY };
+  var bridge = { create: create, CONFIG: CONFIG, SIGN_IN: SIGN_IN };
   if (w) Object.assign(bridge, create({ claude: w.claude, localStorage: (function () {
     try { return w.localStorage; } catch (e) { return null; }
   })() }));

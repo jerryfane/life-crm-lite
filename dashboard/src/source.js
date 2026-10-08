@@ -152,39 +152,24 @@ var LiteSource = (function () {
   }
 
   // ---------- Google Sheets answers -> book ----------
-  // Serial day number (Sheets counts from 1899-12-30) as ISO text, as openpyxl reads a date cell.
-  function serialToIso(v) {
-    var iso = new Date(Date.UTC(1899, 11, 30) + Math.round(v * 86400) * 1000).toISOString();
-    var day = iso.slice(0, 10), time = iso.slice(11, 19);
-    return v < 1 ? time : time === "00:00:00" ? day : day + " " + time;
+  // Every tab is read with get_values over this range: enough for any lite sheet, and for full-kit extra columns.
+  var RANGE = "A1:AZ2000";
+  function quoteTab(title) { return "'" + String(title).replace(/'/g, "''") + "'"; }
+  // get_spreadsheet's tab titles (sheets[].properties.title).
+  function tabTitles(info) {
+    var tabs = info && Array.isArray(info.sheets) ? info.sheets : null;
+    if (!tabs) throw new Error("Google Sheets sent no tabs");
+    return tabs.map(function (t) { return text((t.properties || t).title); }).filter(Boolean);
   }
-  // A Sheets CellData as the value openpyxl gives for the same cell of the .xlsx export.
-  function sheetCell(c) {
-    var v = c && c.effectiveValue;
-    if (!v) return c && c.formattedValue != null ? c.formattedValue : null;
-    if ("numberValue" in v) {
-      var type = c.effectiveFormat && c.effectiveFormat.numberFormat && c.effectiveFormat.numberFormat.type;
-      return /DATE|TIME/.test(type || "") ? serialToIso(v.numberValue) : v.numberValue;
-    }
-    if ("boolValue" in v) return v.boolValue;
-    return "stringValue" in v ? v.stringValue : c.formattedValue != null ? c.formattedValue : null;
+  // get_values rows: no `values` key for an empty range, and each row stops at its last filled cell
+  // (grid() pads them back to the widest row, the header included).
+  function rowsOf(answer) {
+    return answer && Array.isArray(answer.values) ? answer.values.map(function (r) { return Array.isArray(r) ? r : []; }) : [];
   }
-  // The spreadsheet answer (sheets[].properties.title, sheets[].data[].rowData) as a book; null when it has no cells.
-  function bookOf(answer) {
-    if (!answer || !Array.isArray(answer.sheets)) throw new Error("Google Sheets sent no tabs");
-    var cells = false, book = answer.sheets.map(function (sh) {
-      var rows = [];
-      (sh.data || []).forEach(function (g) {
-        (g.rowData || []).forEach(function (rd, i) {
-          var row = rows[(g.startRow || 0) + i] = rows[(g.startRow || 0) + i] || [];
-          (rd.values || []).forEach(function (c, j) { cells = true; row[(g.startColumn || 0) + j] = sheetCell(c); });
-        });
-      });
-      return { title: (sh.properties && sh.properties.title) || "", rows: Array.from(rows, function (r) { return r || []; }) };
-    });
-    return cells ? book : null;
+  function columnLetter(i) { // 0 -> A, 25 -> Z, 26 -> AA
+    var s = ""; for (var c = i + 1; c; c = Math.floor((c - 1) / 26)) s = String.fromCharCode(65 + (c - 1) % 26) + s;
+    return s;
   }
-  function quoteTab(title) { return "'" + title.replace(/'/g, "''") + "'"; }
 
   // ---------- the source ----------
   // The sheet id from a https://docs.google.com/spreadsheets/d/<id>… link, or a bare id; "" for anything else.
@@ -242,20 +227,11 @@ var LiteSource = (function () {
       } catch (e) { return { ok: false, error: msg(e) }; }
     }
     function signIn() { return (bridge && bridge.SIGN_IN) || "Sign in to claude.ai in this browser, then reload."; }
-    // The plain message when the Sheets tool names aren't set up yet (bridge CONFIG still "?"), else "".
-    function notReady() {
-      var ops = [].slice.call(arguments);
-      return bridge && typeof bridge.ready === "function" && !ops.every(bridge.ready) ? bridge.NOT_READY ||
-        "Your sheet can't be read yet: the connector details are being set up." : "";
-    }
 
-    // Every tab with typed cells in one call; if the answer has no cells, each tab's values one by one.
+    // Tab titles from get_spreadsheet, then each tab's values with get_values.
     async function readBook(id) {
-      var answer = await call("info", id), book = bookOf(answer);
-      if (book) return book;
-      return Promise.all(answer.sheets.map(async function (sh) {
-        var title = (sh.properties && sh.properties.title) || "", r = await call("read", id, quoteTab(title));
-        return { title: title, rows: (r && r.values) || [] };
+      return Promise.all(tabTitles(await call("info", id)).map(async function (title) {
+        return { title: title, rows: rowsOf(await call("read", id, quoteTab(title) + "!" + RANGE)) };
       }));
     }
     async function cached(id) {
@@ -268,8 +244,8 @@ var LiteSource = (function () {
       if (state !== "ok") return embeddedResult("no_runtime");
       var sheet = await getSheet();
       if (!sheet) return embeddedResult("no_sheet");
-      var error = notReady("info");
-      if (!error) try {
+      var error;
+      try {
         var book = await readBook(sheet.id);
         if (!tabNamed(book, "Steps") && !tabNamed(book, "Timelines")) throw new Error("that sheet isn't a life-crm sheet");
         var data = fromBook(book), at = now().toISOString();
@@ -286,18 +262,22 @@ var LiteSource = (function () {
       try {
         var sheet = await getSheet();
         if (!sheet) return { ok: false, error: "Connect your sheet first" };
-        if (notReady("read", "write")) return { ok: false, error: notReady("read", "write") };
-        var r = await call("read", sheet.id, "Steps");
-        var g = grid({ rows: (r && r.values) || [] }), head = (g[0] || []).map(headerKey);
-        var idCol = head.indexOf("id"), statusCol = head.indexOf("status");
+        var steps = tabTitles(await call("info", sheet.id)).filter(function (t) { return t.trim().toLowerCase() === "steps"; })[0];
+        if (!steps) return { ok: false, error: "Your sheet has no Steps tab" };
+        var g = grid({ rows: rowsOf(await call("read", sheet.id, quoteTab(steps) + "!" + RANGE)) });
+        var head = (g[0] || []).map(headerKey), idCol = head.indexOf("id"), statusCol = head.indexOf("status");
         if (statusCol < 0) return { ok: false, error: "The Steps tab has no status column" };
         // Same ids as fromBook: the id cell, or s1, s2… by position among non-empty rows.
         var hit = readTab({ rows: g }).rows.filter(function (row, i) {
           return (text(idCol >= 0 ? g[row.n - 1][idCol] : "").trim() || "s" + (i + 1)) === stepId;
         })[0];
         if (!hit) return { ok: false, error: "That step isn't in your sheet any more" };
-        var col = ""; for (var c = statusCol + 1; c; c = Math.floor((c - 1) / 26)) col = String.fromCharCode(65 + (c - 1) % 26) + col;
-        await call("write", sheet.id, "Steps!" + col + hit.n, [["done"]]);
+        // Only the status cell changes; then it's read back to be sure.
+        var cell = quoteTab(steps) + "!" + columnLetter(statusCol) + hit.n;
+        var w = await call("write", sheet.id, cell, [["done"]]);
+        if (!w || w.updatedCells !== 1) throw new Error("Google Sheets changed " + (w && w.updatedCells != null ? w.updatedCells : "no") + " cells instead of 1");
+        var back = rowsOf(await call("read", sheet.id, cell));
+        if (text(back[0] && back[0][0]).trim().toLowerCase() !== "done") throw new Error("the sheet doesn't show it as done");
         var copy = await cached(sheet.id);
         if (copy) {
           copy.data.steps.forEach(function (s) { if (s.id === stepId) s.status = "done"; });
@@ -323,7 +303,7 @@ var LiteSource = (function () {
     return { load: load, getSheet: getSheet, setSheet: setSheet, markDone: markDone, ask: ask };
   }
 
-  var api = { create: create, fromBook: fromBook, bookOf: bookOf, sheetIdOf: sheetIdOf, SYSTEM: SYSTEM };
+  var api = { create: create, fromBook: fromBook, sheetIdOf: sheetIdOf, SYSTEM: SYSTEM };
   if (typeof document !== "undefined") {
     var embedded = null;
     try { embedded = JSON.parse(document.getElementById("data").textContent); } catch (e) { /* app.js reports it */ }

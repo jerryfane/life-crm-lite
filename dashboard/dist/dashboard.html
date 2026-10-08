@@ -13,14 +13,11 @@
 <script>var LiteBridge = (function (w) {
 "use strict";
 var CONFIG = {
-SHEETS_SERVER: "Google Sheets", // connector display names, as in Customize > Connectors
-DRIVE_SERVER: "Google Drive",   // not called today: in round 1 Drive offered no read tool
-SHEETS_TOOLS: { read: "?", write: "?", info: "?" }, // "?" = not known yet: calls fail with a clear error
+SHEETS_SERVER: "Google Sheets", // the connector's display name, as declared in the mcp capability
+SHEETS_TOOLS: { read: "get_values", write: "update_values", info: "get_spreadsheet" },
 SHEETS_ARGS: {
 info: function (id) {
-var c = "sheets.data.rowData.values.";
-return { spreadsheetId: id, includeGridData: true, fields: ["sheets.properties.title", "sheets.data.startRow",
-"sheets.data.startColumn", c + "formattedValue", c + "effectiveValue", c + "effectiveFormat.numberFormat.type"] };
+return { spreadsheetId: id, fields: ["properties.title", "sheets.properties.sheetId", "sheets.properties.title"] };
 },
 read: function (id, range) { return { spreadsheetId: id, range: range }; },
 write: function (id, range, values) { return { spreadsheetId: id, range: range, values: values }; }
@@ -29,7 +26,6 @@ write: function (id, range, values) { return { spreadsheetId: id, range: range, 
 var SIGN_IN = "Sign in to claude.ai in this browser, then reload.";
 var CONNECT = "Connect Google Sheets to Claude (claude.ai, Customize > Connectors), then reload.";
 var OUTSIDE = "This works only when the page is open in claude.ai.";
-var NOT_READY = "Your sheet can't be read yet: the connector details are being set up.";
 function create(env) {
 var claude = env.claude, local = env.localStorage, mem = {}, uses = {};
 var present = !!(claude && typeof claude.use === "function");
@@ -48,12 +44,7 @@ async function runtime() {
 if (!present) return "none";
 return (await use("user")) && (await use("db")) ? "ok" : "signed-out";
 }
-function ready(op) {
-var tool = CONFIG.SHEETS_TOOLS[op];
-return !!tool && tool !== "?";
-}
 async function sheets(op) {
-if (!ready(op)) throw new Error(NOT_READY);
 var tool = CONFIG.SHEETS_TOOLS[op];
 var mcp = await use("mcp"), args = CONFIG.SHEETS_ARGS[op].apply(null, [].slice.call(arguments, 1));
 if (!mcp) throw new Error(!present ? OUTSIDE : (await runtime()) === "ok" ? CONNECT : SIGN_IN);
@@ -103,9 +94,9 @@ try { if (local && id) { local.setItem("lite:" + id + ":" + key, value); return 
 mem[key] = value;
 return true;
 }
-return { runtime: runtime, ready: ready, sheets: sheets, complete: complete, get: get, set: set };
+return { runtime: runtime, sheets: sheets, complete: complete, get: get, set: set };
 }
-var bridge = { create: create, CONFIG: CONFIG, SIGN_IN: SIGN_IN, NOT_READY: NOT_READY };
+var bridge = { create: create, CONFIG: CONFIG, SIGN_IN: SIGN_IN };
 if (w) Object.assign(bridge, create({ claude: w.claude, localStorage: (function () {
 try { return w.localStorage; } catch (e) { return null; }
 })() }));
@@ -243,36 +234,20 @@ return takeExtras(p, row.cells, PEOPLE_COLS, {}, PEOPLE_COLS);
 });
 return Object.assign(data, extra);
 }
-function serialToIso(v) {
-var iso = new Date(Date.UTC(1899, 11, 30) + Math.round(v * 86400) * 1000).toISOString();
-var day = iso.slice(0, 10), time = iso.slice(11, 19);
-return v < 1 ? time : time === "00:00:00" ? day : day + " " + time;
+var RANGE = "A1:AZ2000";
+function quoteTab(title) { return "'" + String(title).replace(/'/g, "''") + "'"; }
+function tabTitles(info) {
+var tabs = info && Array.isArray(info.sheets) ? info.sheets : null;
+if (!tabs) throw new Error("Google Sheets sent no tabs");
+return tabs.map(function (t) { return text((t.properties || t).title); }).filter(Boolean);
 }
-function sheetCell(c) {
-var v = c && c.effectiveValue;
-if (!v) return c && c.formattedValue != null ? c.formattedValue : null;
-if ("numberValue" in v) {
-var type = c.effectiveFormat && c.effectiveFormat.numberFormat && c.effectiveFormat.numberFormat.type;
-return /DATE|TIME/.test(type || "") ? serialToIso(v.numberValue) : v.numberValue;
+function rowsOf(answer) {
+return answer && Array.isArray(answer.values) ? answer.values.map(function (r) { return Array.isArray(r) ? r : []; }) : [];
 }
-if ("boolValue" in v) return v.boolValue;
-return "stringValue" in v ? v.stringValue : c.formattedValue != null ? c.formattedValue : null;
+function columnLetter(i) { // 0 -> A, 25 -> Z, 26 -> AA
+var s = ""; for (var c = i + 1; c; c = Math.floor((c - 1) / 26)) s = String.fromCharCode(65 + (c - 1) % 26) + s;
+return s;
 }
-function bookOf(answer) {
-if (!answer || !Array.isArray(answer.sheets)) throw new Error("Google Sheets sent no tabs");
-var cells = false, book = answer.sheets.map(function (sh) {
-var rows = [];
-(sh.data || []).forEach(function (g) {
-(g.rowData || []).forEach(function (rd, i) {
-var row = rows[(g.startRow || 0) + i] = rows[(g.startRow || 0) + i] || [];
-(rd.values || []).forEach(function (c, j) { cells = true; row[(g.startColumn || 0) + j] = sheetCell(c); });
-});
-});
-return { title: (sh.properties && sh.properties.title) || "", rows: Array.from(rows, function (r) { return r || []; }) };
-});
-return cells ? book : null;
-}
-function quoteTab(title) { return "'" + title.replace(/'/g, "''") + "'"; }
 function sheetIdOf(url) {
 var s = String(url || "").trim();
 var m = /^https:\/\/docs\.google\.com\/spreadsheets\/d\/([A-Za-z0-9_-]{20,})(?:[/?#]|$)/.exec(s) || /^([A-Za-z0-9_-]{20,})$/.exec(s);
@@ -323,17 +298,9 @@ return (await bridge.set(SHEET_KEY, url == null ? "" : String(url).trim())) ? { 
 } catch (e) { return { ok: false, error: msg(e) }; }
 }
 function signIn() { return (bridge && bridge.SIGN_IN) || "Sign in to claude.ai in this browser, then reload."; }
-function notReady() {
-var ops = [].slice.call(arguments);
-return bridge && typeof bridge.ready === "function" && !ops.every(bridge.ready) ? bridge.NOT_READY ||
-"Your sheet can't be read yet: the connector details are being set up." : "";
-}
 async function readBook(id) {
-var answer = await call("info", id), book = bookOf(answer);
-if (book) return book;
-return Promise.all(answer.sheets.map(async function (sh) {
-var title = (sh.properties && sh.properties.title) || "", r = await call("read", id, quoteTab(title));
-return { title: title, rows: (r && r.values) || [] };
+return Promise.all(tabTitles(await call("info", id)).map(async function (title) {
+return { title: title, rows: rowsOf(await call("read", id, quoteTab(title) + "!" + RANGE)) };
 }));
 }
 async function cached(id) {
@@ -345,8 +312,8 @@ if (state === "none") return embeddedResult("");
 if (state !== "ok") return embeddedResult("no_runtime");
 var sheet = await getSheet();
 if (!sheet) return embeddedResult("no_sheet");
-var error = notReady("info");
-if (!error) try {
+var error;
+try {
 var book = await readBook(sheet.id);
 if (!tabNamed(book, "Steps") && !tabNamed(book, "Timelines")) throw new Error("that sheet isn't a life-crm sheet");
 var data = fromBook(book), at = now().toISOString();
@@ -362,17 +329,20 @@ async function markDone(stepId) {
 try {
 var sheet = await getSheet();
 if (!sheet) return { ok: false, error: "Connect your sheet first" };
-if (notReady("read", "write")) return { ok: false, error: notReady("read", "write") };
-var r = await call("read", sheet.id, "Steps");
-var g = grid({ rows: (r && r.values) || [] }), head = (g[0] || []).map(headerKey);
-var idCol = head.indexOf("id"), statusCol = head.indexOf("status");
+var steps = tabTitles(await call("info", sheet.id)).filter(function (t) { return t.trim().toLowerCase() === "steps"; })[0];
+if (!steps) return { ok: false, error: "Your sheet has no Steps tab" };
+var g = grid({ rows: rowsOf(await call("read", sheet.id, quoteTab(steps) + "!" + RANGE)) });
+var head = (g[0] || []).map(headerKey), idCol = head.indexOf("id"), statusCol = head.indexOf("status");
 if (statusCol < 0) return { ok: false, error: "The Steps tab has no status column" };
 var hit = readTab({ rows: g }).rows.filter(function (row, i) {
 return (text(idCol >= 0 ? g[row.n - 1][idCol] : "").trim() || "s" + (i + 1)) === stepId;
 })[0];
 if (!hit) return { ok: false, error: "That step isn't in your sheet any more" };
-var col = ""; for (var c = statusCol + 1; c; c = Math.floor((c - 1) / 26)) col = String.fromCharCode(65 + (c - 1) % 26) + col;
-await call("write", sheet.id, "Steps!" + col + hit.n, [["done"]]);
+var cell = quoteTab(steps) + "!" + columnLetter(statusCol) + hit.n;
+var w = await call("write", sheet.id, cell, [["done"]]);
+if (!w || w.updatedCells !== 1) throw new Error("Google Sheets changed " + (w && w.updatedCells != null ? w.updatedCells : "no") + " cells instead of 1");
+var back = rowsOf(await call("read", sheet.id, cell));
+if (text(back[0] && back[0][0]).trim().toLowerCase() !== "done") throw new Error("the sheet doesn't show it as done");
 var copy = await cached(sheet.id);
 if (copy) {
 copy.data.steps.forEach(function (s) { if (s.id === stepId) s.status = "done"; });
@@ -394,7 +364,7 @@ return answer.trim() ? { text: answer.trim() } : { error: "Claude sent an empty 
 }
 return { load: load, getSheet: getSheet, setSheet: setSheet, markDone: markDone, ask: ask };
 }
-var api = { create: create, fromBook: fromBook, bookOf: bookOf, sheetIdOf: sheetIdOf, SYSTEM: SYSTEM };
+var api = { create: create, fromBook: fromBook, sheetIdOf: sheetIdOf, SYSTEM: SYSTEM };
 if (typeof document !== "undefined") {
 var embedded = null;
 try { embedded = JSON.parse(document.getElementById("data").textContent); } catch (e) { /* app.js reports it */ }

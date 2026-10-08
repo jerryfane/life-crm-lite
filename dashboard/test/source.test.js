@@ -21,8 +21,8 @@ const xlsxOf = (name) => path.join(ROOT, "examples", name, "crm.xlsx");
 
 const py = (...args) => JSON.parse(execFileSync("python3", args, { maxBuffer: 1 << 24 }));
 const expected = (xlsx) => py(path.join(ROOT, "tools/convert.py"), "to-json", xlsx);
-const gridAnswer = (xlsx) => py(path.join(__dirname, "sheets_answer.py"), xlsx);
-const valuesAnswer = (xlsx) => py(path.join(__dirname, "sheets_answer.py"), xlsx, "--values");
+const answers = (xlsx) => py(path.join(__dirname, "sheets_answer.py"), xlsx);
+const bookOf = (xlsx) => py(path.join(__dirname, "sheets_answer.py"), xlsx, "--book");
 
 const ID = "1AbCdEfGhIjKlMnOpQrStUvWxYz0123456789";
 const URL = `https://docs.google.com/spreadsheets/d/${ID}/edit`;
@@ -36,10 +36,9 @@ function mockBridge(ops = {}, opts = {}) {
   return {
     calls, store,
     async runtime() { return opts.runtime || "ok"; },
-    ready: (op) => !!ops[op],
     async sheets(op, ...args) {
       calls.push({ op, args });
-      if (!ops[op]) throw new Error("called a tool that isn't set up");
+      if (!ops[op]) throw new Error(`the ${op} tool failed`);
       return ops[op](...args);
     },
     async complete(system, prompt) { calls.push({ complete: { system, prompt } }); return opts.answer ? opts.answer(system, prompt) : "ok"; },
@@ -49,32 +48,80 @@ function mockBridge(ops = {}, opts = {}) {
 }
 const source = (bridge, embedded, extra = {}) => LiteSource.create({ bridge, embedded, now: () => NOW, ...extra });
 
-// ---------- mapping ----------
-
-for (const file of [...EXAMPLES.map(xlsxOf), TRICKY]) {
-  const name = file === TRICKY ? "tricky sheet" : path.relative(ROOT, file);
-  test(`Sheets spreadsheet answer -> data block matches convert.py: ${name}`, async () => {
-    const answer = gridAnswer(file);
-    const bridge = mockBridge({ info: (id) => { assert.equal(id, ID); return answer; } });
-    const r = await source(bridge, { sheet: { url: URL } }).load();
-    assert.equal(r.source, "drive", r.error);
-    const want = expected(file);
-    if (!want.sheet.url) want.sheet.url = URL;
-    assert.deepEqual(r.data, want);
-  });
+// A fake Google Sheets connector over {tab: rows}, answering exactly as in round2.md: get_spreadsheet ->
+// {properties, sheets: [{properties: {sheetId, title}}]}; get_values -> {range, values} with short rows and no
+// `values` key when the range is empty; update_values -> {updatedRange, updatedRows, updatedColumns, updatedCells, status}.
+function fakeSheets(tabs, opts = {}) {
+  const parse = (range) => {
+    const m = /^'((?:[^']|'')*)'!([A-Z]+)(\d+)(?::([A-Z]+)(\d+))?$/.exec(range);
+    assert.ok(m, `range in A1 form with a quoted tab: ${range}`);
+    const col = (s) => [...s].reduce((n, ch) => n * 26 + ch.charCodeAt(0) - 64, 0) - 1;
+    return { tab: m[1].replace(/''/g, "'"), c0: col(m[2]), r0: +m[3] - 1, c1: col(m[4] || m[2]), r1: +(m[5] || m[3]) - 1 };
+  };
+  return {
+    info: (id) => ({ spreadsheetId: id, properties: { title: "crm" }, revisionId: "r1",
+      sheets: Object.keys(tabs).map((title, sheetId) => ({ properties: { sheetId, title } })) }),
+    read: (id, range) => {
+      const { tab, c0, r0, c1, r1 } = parse(range);
+      const rows = (tabs[tab] || []).slice(r0, r1 + 1).map((r) => (r || []).slice(c0, c1 + 1).map((v) => (v == null ? "" : String(v))));
+      const trimmed = rows.map((r) => r.slice(0, r.reduce((n, v, i) => (v ? i + 1 : n), 0)));
+      while (trimmed.length && !trimmed[trimmed.length - 1].length) trimmed.pop();
+      return trimmed.length ? { range, majorDimension: "ROWS", values: trimmed } : { range, majorDimension: "ROWS" };
+    },
+    write: (id, range, values) => {
+      const { tab, c0, r0 } = parse(range);
+      assert.ok(Array.isArray(values) && values.every(Array.isArray), "values is a list of rows");
+      let cells = 0;
+      values.forEach((row, i) => row.forEach((v, j) => {
+        const r = (tabs[tab][r0 + i] = tabs[tab][r0 + i] || []);
+        r[c0 + j] = opts.ignoreWrites ? r[c0 + j] : v;
+        cells++;
+      }));
+      return { spreadsheetId: id, updatedRange: range, updatedRows: values.length, updatedColumns: values[0].length,
+        updatedCells: opts.updatedCells ?? cells, status: "success" };
+    },
+  };
 }
 
+// ---------- mapping ----------
+
 for (const name of EXAMPLES) {
-  test(`Sheets values, tab by tab, when the answer has no cells: examples/${name}`, async () => {
-    const values = valuesAnswer(xlsxOf(name));
-    const info = { sheets: Object.keys(values).map((title) => ({ properties: { title } })) };
-    const bridge = mockBridge({ info: () => info, read: (id, range) => ({ values: values[range.slice(1, -1).replace(/''/g, "'")] }) });
+  test(`Sheets connector (get_spreadsheet + get_values per tab) -> data block matches convert.py: examples/${name}`, async () => {
+    const { info, values } = answers(xlsxOf(name));
+    const bridge = mockBridge({ info: (id) => { assert.equal(id, ID); return info; },
+      read: (id, range) => { const tab = /^'((?:[^']|'')*)'!A1:AZ2000$/.exec(range)[1].replace(/''/g, "'"); return values[tab]; } });
     const r = await source(bridge, withSheet(embeddedFor(name))).load();
     assert.equal(r.source, "drive", r.error);
     assert.deepEqual(r.data, expected(xlsxOf(name)));
-    assert.ok(bridge.calls.some((c) => c.op === "read" && c.args[1] === "'Steps'"));
+    assert.deepEqual(bridge.calls.filter((c) => c.op === "read").map((c) => c.args[1]).sort(),
+      info.sheets.map((s) => `'${s.properties.title}'!A1:AZ2000`).sort());
+    assert.ok(Object.values(values).some((p) => p.values.some((row) => row.length < p.values[0].length)), "fixture has short rows");
   });
 }
+
+test("the mapping port matches convert.py on a sheet with dates, numbers, yes/no and extras", () => {
+  assert.deepEqual(LiteSource.fromBook(bookOf(TRICKY)), expected(TRICKY));
+});
+
+test("empty tabs (no values key), short rows and quoted tab names read like convert.py", async () => {
+  const tabs = {
+    "Timelines": [["id", "name", "group", "color"], ["home", "Home"]],
+    "Steps": [["timeline", "track", "title", "kind", "start", "end", "date", "status", "progress", "owner", "phase",
+      "pin", "notes", "link", "show", "id", "importance", "urgency", "repeat"], ["home", "", "Sign"], [], ["home", "", "Paint", "", "", "", "2027-01"]],
+    "Settings": [["key", "value"], ["title", "Ana's plan"], ["name", "Ana"]],
+    "Collections": [["id", "name", "tab", "layout", "title_field", "status_field", "statuses", "date_field", "fields"],
+      ["flats", "Flats", "Ana's flats", "table", "Address", "", "", "", "Rent"]],
+    "Ana's flats": [["Address", "Rent"], ["Via Roma 1"]],
+    "People": [],
+  };
+  const r = await source(mockBridge(fakeSheets(tabs)), { sheet: { url: URL } }).load();
+  assert.equal(r.source, "drive", r.error);
+  assert.deepEqual(r.data.steps.map((s) => [s.id, s.title, s.status, s.date]), [["s1", "Sign", "todo", null], ["s2", "Paint", "todo", "2027-01"]]);
+  assert.deepEqual(r.data.lists[0].rows, [{ Address: "Via Roma 1", Rent: "" }]);
+  assert.deepEqual(r.data.people, []);
+  assert.equal(r.data.areas[0].color, "gray");
+  assert.equal(r.data.owner, "Ana");
+});
 
 test("the tricky sheet keeps dates, extras, Profile name, json: settings and the renamed People tab", () => {
   const d = expected(TRICKY);
@@ -149,9 +196,9 @@ test("setSheet / getSheet: the viewer's link wins over the embedded one; null cl
 });
 
 test("load: saved copy of that sheet (with the reason) when the read fails, then the embedded block", async () => {
-  const answer = gridAnswer(xlsxOf(EXAMPLES[0]));
+  const sheet = fakeSheets(Object.fromEntries(bookOf(xlsxOf(EXAMPLES[0])).map((t) => [t.title, t.rows])));
   let up = true;
-  const bridge = mockBridge({ info: () => { if (!up) throw new Error("401"); return answer; } });
+  const bridge = mockBridge({ ...sheet, info: (id) => { if (!up) throw new Error("401"); return sheet.info(id); } });
   const embedded = withSheet(embeddedFor(EXAMPLES[0]));
   assert.equal((await source(bridge, embedded).load()).source, "drive");
   up = false;
@@ -166,15 +213,15 @@ test("load: saved copy of that sheet (with the reason) when the read fails, then
   assert.match(e.error, /401/);
 });
 
-test("load: unknown tools, a non-CRM sheet, a broken cache and a hanging connector never throw", async () => {
-  const unset = mockBridge();
-  let r = await source(unset, { sheet: { url: URL } }).load();
+test("load: a refused tool, a non-CRM sheet, a broken cache and a hanging connector never throw", async () => {
+  let r = await source(mockBridge(), { sheet: { url: URL } }).load();
   assert.equal(r.source, "embedded");
-  assert.equal(r.error, "Your sheet can't be read yet: the connector details are being set up.");
-  assert.equal(unset.calls.length, 0, "no tool is called while the names aren't set up");
+  assert.equal(r.error, "Couldn't read your sheet: the info tool failed");
 
-  const other = mockBridge({ info: () => ({ sheets: [{ properties: { title: "Budget" }, data: [{ rowData: [{ values: [{ formattedValue: "x" }] }] }] }] }) },
-    { store: { [`lite-crm:${ID}`]: "{broken" } });
+  r = await source(mockBridge({ info: () => ({ properties: { title: "x" } }) }), { sheet: { url: URL } }).load();
+  assert.equal(r.error, "Couldn't read your sheet: Google Sheets sent no tabs");
+
+  const other = mockBridge(fakeSheets({ Budget: [["x"]] }), { store: { [`lite-crm:${ID}`]: "{broken" } });
   r = await source(other, { sheet: { url: URL } }).load();
   assert.equal(r.source, "embedded");
   assert.match(r.error, /isn't a life-crm sheet/);
@@ -192,39 +239,50 @@ test("load: unknown tools, a non-CRM sheet, a broken cache and a hanging connect
 
 // ---------- markDone ----------
 
-function stepsValues() {
-  return [["timeline", "title", "status", "id"], ["home", "A", "todo", "s1"], [], ["home", "B", "doing", ""],
-    ["home", "C", "todo", "x9"]];
+function stepsTabs() {
+  // short rows (trailing empty cells left out) and an empty row, as get_values gives them
+  return { Timelines: [["id", "name"]], steps: [["timeline", "title", "notes", "status", "id"], ["home", "A", "", "todo", "s1"], [],
+    ["home", "B"], ["home", "C", "", "todo", "x9"]] };
 }
 
-test("markDone writes done to the status cell of the step's row", async () => {
-  const writes = [];
-  const bridge = mockBridge({ read: (id, range) => { assert.equal(range, "Steps"); return { values: stepsValues() }; },
-    write: (id, range, values) => { writes.push({ id, range, values }); return {}; } },
-  { store: { [`lite-crm:${ID}`]: JSON.stringify({ at: "x", data: { steps: [{ id: "x9", status: "todo" }] } }) } });
+test("markDone finds the row by id, writes only its status cell, and reads it back", async () => {
+  const tabs = stepsTabs(), sheet = fakeSheets(tabs);
+  const bridge = mockBridge(sheet,
+    { store: { [`lite-crm:${ID}`]: JSON.stringify({ at: "x", data: { steps: [{ id: "x9", status: "todo" }] } }) } });
   const src = source(bridge, { sheet: { url: URL } });
   assert.deepEqual(await src.markDone("x9"), { ok: true });
-  assert.deepEqual(writes[0], { id: ID, range: "Steps!C5", values: [["done"]] });
+  assert.deepEqual(bridge.calls.map((c) => [c.op, ...c.args.slice(1)]), [
+    ["info"], ["read", "'steps'!A1:AZ2000"], ["write", "'steps'!D5", [["done"]]], ["read", "'steps'!D5"]]);
+  assert.deepEqual(tabs.steps[4], ["home", "C", "", "done", "x9"]);
   assert.equal(JSON.parse(bridge.store.get(`lite-crm:${ID}`)).data.steps[0].status, "done");
-  // a step without an id cell is s<position among filled rows>, as convert.py names it
+  // a step without an id cell is s<position among filled rows>, as convert.py names it; its status cell was empty
   assert.deepEqual(await src.markDone("s2"), { ok: true });
-  assert.equal(writes[1].range, "Steps!C4");
+  assert.equal(tabs.steps[3][3], "done");
+  assert.deepEqual(tabs.steps[3].slice(0, 2), ["home", "B"]);
 });
 
-test("markDone reports tools not set up, a missing step, a missing column, a refused write and no sheet", async () => {
-  const half = mockBridge({ read: () => ({ values: stepsValues() }) });
-  let r = await source(half, { sheet: { url: URL } }).markDone("s1");
-  assert.deepEqual(r, { ok: false, error: "Your sheet can't be read yet: the connector details are being set up." });
-  assert.equal(half.calls.length, 0);
-  const refusing = { read: () => ({ values: stepsValues() }), write: () => { throw new Error("needs approval"); } };
-  let src = source(mockBridge(refusing), { sheet: { url: URL } });
-  assert.match((await src.markDone("s99")).error, /isn't in your sheet/);
-  r = await src.markDone("s1");
-  assert.equal(r.ok, false);
-  assert.equal(r.error, "Couldn't mark it done in your sheet: needs approval");
-  src = source(mockBridge({ ...refusing, read: () => ({ values: [["title"], ["A"]] }) }), { sheet: { url: URL } });
-  assert.match((await src.markDone("s1")).error, /no status column/);
-  assert.match((await source(mockBridge(), {}).markDone("s1")).error, /Connect your sheet first/);
+test("markDone: column letters past Z", async () => {
+  const head = Array.from({ length: 27 }, (_, i) => `c${i}`); head[26] = "status"; head[0] = "id";
+  const tabs = { Steps: [head, ["s1"]] };
+  assert.deepEqual(await source(mockBridge(fakeSheets(tabs)), { sheet: { url: URL } }).markDone("s1"), { ok: true });
+  assert.equal(tabs.Steps[1][26], "done");
+});
+
+test("markDone reports a missing step, tab or column, a refused write, a wrong cell count, no echo and no sheet", async () => {
+  const fail = (r) => { assert.equal(r.ok, false); return r.error; };
+  let src = source(mockBridge(fakeSheets(stepsTabs())), { sheet: { url: URL } });
+  assert.match(fail(await src.markDone("s99")), /isn't in your sheet/);
+  src = source(mockBridge({ ...fakeSheets(stepsTabs()), write: () => { throw new Error("needs approval"); } }), { sheet: { url: URL } });
+  assert.equal(fail(await src.markDone("s1")), "Couldn't mark it done in your sheet: needs approval");
+  src = source(mockBridge(fakeSheets(stepsTabs(), { updatedCells: 0 })), { sheet: { url: URL } });
+  assert.match(fail(await src.markDone("s1")), /changed 0 cells instead of 1/);
+  src = source(mockBridge(fakeSheets(stepsTabs(), { ignoreWrites: true })), { sheet: { url: URL } });
+  assert.match(fail(await src.markDone("s1")), /doesn't show it as done/);
+  src = source(mockBridge(fakeSheets({ Steps: [["title"], ["A"]] })), { sheet: { url: URL } });
+  assert.match(fail(await src.markDone("s1")), /no status column/);
+  src = source(mockBridge(fakeSheets({ Timelines: [["id"]] })), { sheet: { url: URL } });
+  assert.match(fail(await src.markDone("s1")), /no Steps tab/);
+  assert.match(fail(await source(mockBridge(), {}).markDone("s1")), /Connect your sheet first/);
 });
 
 // ---------- ask ----------
@@ -269,31 +327,29 @@ test("bridge.runtime: none outside claude.ai, signed-out when capabilities are n
   assert.equal(await LiteBridge.create(runtime({ user: {}, db: {} })).runtime(), "ok");
 });
 
-test("bridge.sheets calls the configured tool through claude.use('mcp') and returns its payload", async () => {
+test("bridge.sheets calls Google Sheets' tools through claude.use('mcp') as in round 2 and returns result.payload", async () => {
   const seen = [];
-  const mcp = { callTool: async (server, tool, input) => { seen.push({ server, tool, input }); return { payload: { values: [["a"]] } }; } };
+  const payloads = {
+    get_values: { range: "Sheet1!A1:B2", majorDimension: "ROWS", values: [["test"]] },
+    update_values: { updatedRange: "Sheet1!A1", updatedRows: 1, updatedColumns: 1, updatedCells: 1, status: "success" },
+    get_spreadsheet: { properties: { title: "lite test" }, sheets: [{ properties: { sheetId: 0, title: "Sheet1" } }], revisionId: "r" },
+  };
+  const mcp = { callTool: async (server, tool, input) => { seen.push({ server, tool, input }); return { payload: payloads[tool] }; } };
   const b = LiteBridge.create(runtime({ mcp, user: {}, db: {} }));
-  await assert.rejects(b.sheets("read", ID, "Steps"), new RegExp(LiteBridge.NOT_READY.replace(/[.?]/g, "\\$&")));
-  await assert.rejects(b.sheets("write", ID, "Steps!C2", [["done"]]), /can't be read yet/);
-  assert.equal(seen.length, 0, "callTool is never called with a placeholder name");
-  assert.equal(b.ready("read"), false);
-  const tools = LiteBridge.CONFIG.SHEETS_TOOLS, saved = { ...tools };
-  try {
-    Object.assign(tools, { read: "get_values", write: "update_values", info: "get_spreadsheet" });
-    assert.deepEqual(await b.sheets("read", ID, "Steps"), { values: [["a"]] });
-    assert.deepEqual(seen[0], { server: "Google Sheets", tool: "get_values", input: { spreadsheetId: ID, range: "Steps" } });
-    await b.sheets("write", ID, "Steps!C2", [["done"]]);
-    assert.deepEqual(seen[1].input, { spreadsheetId: ID, range: "Steps!C2", values: [["done"]] });
-    await b.sheets("info", ID);
-    assert.equal(seen[2].input.includeGridData, true);
+  assert.deepEqual(await b.sheets("read", ID, "Sheet1!A1:B2"), payloads.get_values);
+  assert.deepEqual(seen[0], { server: "Google Sheets", tool: "get_values", input: { spreadsheetId: ID, range: "Sheet1!A1:B2" } });
+  assert.deepEqual(await b.sheets("write", ID, "Sheet1!A1", [["test"]]), payloads.update_values);
+  assert.deepEqual(seen[1], { server: "Google Sheets", tool: "update_values", input: { spreadsheetId: ID, range: "Sheet1!A1", values: [["test"]] } });
+  assert.deepEqual(await b.sheets("info", ID), payloads.get_spreadsheet);
+  assert.deepEqual(seen[2], { server: "Google Sheets", tool: "get_spreadsheet",
+    input: { spreadsheetId: ID, fields: ["properties.title", "sheets.properties.sheetId", "sheets.properties.title"] } });
 
-    const str = LiteBridge.create(runtime({ mcp: { callTool: async () => ({ payload: '{"values":[]}' }) } }));
-    assert.deepEqual(await str.sheets("read", ID, "A1"), { values: [] });
-    const bad = LiteBridge.create(runtime({ mcp: { callTool: async () => ({ isError: true, error: { message: "no access" } }) } }));
-    await assert.rejects(bad.sheets("read", ID, "A1"), /no access/);
-    await assert.rejects(LiteBridge.create(runtime({ user: {}, db: {} })).sheets("read", ID, "A1"), /Connect Google Sheets/);
-    await assert.rejects(LiteBridge.create(runtime({})).sheets("read", ID, "A1"), /Sign in to claude.ai in this browser, then reload/);
-  } finally { Object.assign(tools, saved); }
+  const empty = LiteBridge.create(runtime({ mcp: { callTool: async () => ({ payload: { range: "Sheet1!C1:C2", majorDimension: "ROWS" } }) } }));
+  assert.deepEqual(await empty.sheets("read", ID, "Sheet1!C1:C2"), { range: "Sheet1!C1:C2", majorDimension: "ROWS" });
+  const bad = LiteBridge.create(runtime({ mcp: { callTool: async () => ({ isError: true, error: { message: "no access" } }) } }));
+  await assert.rejects(bad.sheets("read", ID, "A1"), /no access/);
+  await assert.rejects(LiteBridge.create(runtime({ user: {}, db: {} })).sheets("read", ID, "A1"), /Connect Google Sheets/);
+  await assert.rejects(LiteBridge.create(runtime({})).sheets("read", ID, "A1"), /Sign in to claude.ai in this browser, then reload/);
 });
 
 test("bridge.complete uses claude.use('sample') with the system text as a preamble", async () => {
