@@ -1016,10 +1016,29 @@
 
   // A source with its own screens (the viewer, viewer/src/source.js) gets app.js's DOM helper and a way to reload.
   const ui = { h, reload: () => refresh() };
+  // A plan that can't be drawn never leaves a blank page: a plain card, with the source's toolbar (the viewer: Paste
+  // new data, Clear, Download my sheet) or a Refresh button. broken = what to tell the person.
+  let broken = "";
+  function brokenView() {
+    let bar = null;
+    try { bar = SRC.toolbar ? SRC.toolbar(ui) : null; } catch (e) { bar = null; }
+    return h("div", { class: "broken" }, bar, h("div", { class: "gate" }, h("div", { class: "gate-card", role: "alert" },
+      h("h1", {}, "Your plan can't be shown"), h("p", {}, broken),
+      SRC.toolbar ? null : h("button", { type: "button", class: "btn dark", onclick: () => refresh() }, "Refresh"))));
+  }
+  function fail(e) {
+    gate = "broken";
+    broken = `Something in this plan can't be drawn (${String(e && e.message || e).slice(0, 160)}). ` +
+      (SRC.toolbar ? "Paste a new data block from your AI, or clear this one." : "Check your sheet, then refresh.");
+    try { draw(); } catch (e2) { shell.replaceChildren(h("p", { class: "gate-wait" }, broken)); }
+  }
   function render() {
+    try { draw(); } catch (e) { fail(e); }
+  }
+  function draw() {
     hideTip();
     if (gate) {
-      shell.replaceChildren(gate === "no_data" ? SRC.screen(ui) : gateView());
+      shell.replaceChildren(gate === "no_data" ? SRC.screen(ui) : gate === "broken" ? brokenView() : gateView());
       current = null; lastRoute = null;
       document.title = gate === "no_sheet" ? "Connect your life CRM" : gate === "no_data" ? "See your life CRM" : "My plan";
       return;
@@ -1045,8 +1064,8 @@
     lastRoute = key;
     document.title = key === "roadmap" ? DATA.title : `${title} · ${DATA.title}`;
   }
-  // Only "no_runtime"/"no_sheet"/"no_data", or an error with none of the viewer's data, leave the dashboard. A read
-  // error with their saved copy (source "cache") shows that copy plus a note, also right after Connect.
+  // Only "no_runtime"/"no_sheet"/"no_data"/"broken", or an error with none of the viewer's data, leave the dashboard.
+  // A read error with their saved copy (source "cache") shows that copy plus a note, also right after Connect.
   async function refresh() {
     loading = true;
     if (!gate) render();
@@ -1056,13 +1075,14 @@
     loading = false; conn.busy = false;
     const err = r && r.error;
     if (note && note.read) note = null;
-    if (err === "no_runtime" || err === "no_sheet" || err === "no_data") gate = err;
+    if (err === "broken") { gate = "broken"; broken = r.message || "This plan can't be shown."; }
+    else if (err === "no_runtime" || err === "no_sheet" || err === "no_data") gate = err;
     else if (!(r && r.data && Array.isArray(r.data.areas)) || (err && r.source === "embedded")) {
       // the sheet can't be read and there is no saved copy of it: never show the example as if it were theirs
       gate = "no_sheet"; conn.url = sheet && sheet.url || conn.url; conn.err = err || "Couldn't read your sheet. Try again.";
     } else {
       gate = "";
-      setData(r.data, { source: r.source, at: r.at, error: err, label: r.label });
+      try { setData(r.data, { source: r.source, at: r.at, error: err, label: r.label }); } catch (e) { return fail(e); }
       if (err) note = { at: "top", read: true, text: `${err.replace(/\.?$/, ".")} Showing your saved copy from ${relTime(r.at)}.` };
     }
     render();
@@ -1074,8 +1094,8 @@
     clearTimeout(rt);
     rt = setTimeout(() => current && current.layout(), 120);
   });
-  // First paint from the embedded block, then the live sheet replaces it.
-  setData(EMBEDDED, { source: "embedded", at: "" });
+  // First paint from the embedded block, then the live sheet replaces it. A block that can't be drawn shows the card.
+  try { setData(EMBEDDED, { source: "embedded", at: "" }); } catch (e) { fail(e); }
   refresh();
   // A copy retyped with a changed or missing character (copy mode): one calm banner above everything; the page still runs.
   if (typeof LiteCheck !== "undefined") LiteCheck.check(document, window.crypto && crypto.subtle).then((ok) => {

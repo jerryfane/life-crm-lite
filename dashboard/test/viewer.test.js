@@ -68,9 +68,12 @@ test("bad JSON, the wrong shape and nothing at all are refused with a plain reas
   }
 });
 
-test("a saved copy that is no longer readable shows the paste screen, not an error", async () => {
+test("a saved copy that is no longer valid JSON shows the broken card with the reason, not a crash", async () => {
   const st = storage(); st.m.set(V.KEY, "{broken");
-  assert.deepEqual(await source(st).s.load(), { error: "no_data" });
+  const r = await source(st).s.load();
+  assert.equal(r.error, "broken"); assert.match(r.message, /can't be shown: I can't find a data block here/);
+  const bad = storage(); bad.m.set(V.KEY, '{"areas": [}');
+  assert.match((await source(bad).s.load()).message, /can't be shown: This data block is broken/);
 });
 
 test("storage that can't save: the page still shows, and says it isn't saved", async () => {
@@ -143,4 +146,76 @@ test("Download my sheet names the file after the plan, and refuses colliding nam
   const bad = source(storage(), { exporter: { problems: () => ["'a' and 'A' would share one sheet column"], xlsx: () => assert.fail("no file") } });
   bad.s.paste(ELENA);
   assert.match(bad.s.exportSheet().error, /can't make your sheet yet.*'a' and 'A'/s);
+});
+
+// The #45 review: a block with the right top-level lists but a broken inside must never replace a working plan.
+const valid = () => JSON.parse(ELENA);
+const MALFORMED = [
+  ['{"areas":[null],"steps":[]}', /area 1 is empty or not a \{ … \} block/], // the reviewer's case
+  ['{"areas":[1],"steps":[]}', /area 1 is empty/],
+  ['{"areas":[{"id":"a"}],"steps":[]}', /area 1 needs an "id" and a "name"/],
+  ['{"areas":[{"id":"a","name":"A"},{"id":"a","name":"B"}],"steps":[]}', /two areas have the id "a"/],
+  ['{"areas":[{"id":"a","name":"A"}],"steps":[null]}', /step 1 is empty/],
+  ['{"areas":[{"id":"a","name":"A"}],"steps":[{"area":"a"}]}', /step 1 has no "title"/],
+  ['{"areas":[{"id":"a","name":"A"}],"steps":[{"title":"T","area":"b"}]}', /step "T" is in the area "b", which isn't in "areas"/],
+  ['{"areas":[{"id":"a","name":"A"}],"steps":[{"title":"T","area":"a","date":"2026-02-30"}]}', /date "2026-02-30" isn't a real date/],
+  ['{"areas":[{"id":"a","name":"A"}],"steps":[{"title":"T","area":"a","date":20261011}]}', /isn't a real date/],
+  ['{"areas":[{"id":"a","name":"A"}],"steps":[{"title":"T","area":"a","start":"2026-10"}]}', /"start" and "end" go together/],
+  ['{"areas":[{"id":"a","name":"A"}],"steps":[{"title":"T","area":"a","notes":{"x":1}}]}', /"notes" should be text/],
+  ['{"areas":[{"id":"a","name":"A"}],"steps":[{"id":"s1","title":"T","area":"a"},{"id":"s1","title":"U","area":"a"}]}', /every step needs its own "id"/],
+  ['{"areas":[],"steps":[],"lists":{}}', /"lists" should be a list/],
+  ['{"areas":[],"steps":[],"lists":[{"id":"x","name":"X","columns":[]}]}', /list "X" needs a list of "columns"/],
+  ['{"areas":[],"steps":[],"lists":[{"id":"x","name":"X","columns":["a,b"]}]}', /without , or \|/],
+  ['{"areas":[],"steps":[],"lists":[{"id":"x","name":"X","columns":["a"],"rows":[null]}]}', /"rows" should be a list of/],
+  ['{"areas":[],"steps":[],"lists":[{"id":"people","name":"P","columns":["a"]}]}', /is "people"/],
+  ['{"areas":[],"steps":[],"people":[{"role":"x"}]}', /person 1 has no "name"/],
+  ['{"areas":[],"steps":[],"people":[{"name":"Ana","area":"zz"}]}', /person "Ana" is in the area "zz"/],
+  ['{"areas":[],"steps":[],"title":["x"]}', /"title" should be text/],
+];
+
+test("a malformed block is refused naming the first problem, and the saved plan is left as it was", async () => {
+  for (const [text, why] of MALFORMED) {
+    const { s, st } = source();
+    s.paste(ELENA);
+    const saved = st.m.get(V.KEY);
+    const r = s.paste(text);
+    assert.match(r.error, /^I can't show this data block: /, text);
+    assert.match(r.error, why, text);
+    assert.match(r.error, /Ask your AI to fix that/);
+    assert.equal(st.m.get(V.KEY), saved, text);
+    assert.equal((await s.load()).data.owner, "Elena", text);
+  }
+});
+
+test("every example, and values the page copes with (unknown colour, status, tone), still pass", () => {
+  for (const ex of ["elena", "maya", "daniel"]) assert.ok(V.parse(fs.readFileSync(path.join(ROOT, `examples/${ex}/data.json`), "utf8")).data, ex);
+  const d = valid();
+  d.areas[0].color = "chartreuse"; d.steps[0].status = "in progress"; d.tone = "gentle"; d.steps[0].importance = "medium";
+  d.steps[0].date = "2026-11"; d.steps[1].date = null; d.steps[1].start = "2026-10-01"; d.steps[1].end = "2026-10-31";
+  assert.ok(V.parse(JSON.stringify(d)).data);
+});
+
+test("a bad block already saved on this laptop shows the broken card with the reason; a new paste or Clear fixes it", async () => {
+  const st = storage(); st.m.set(V.KEY, '{"areas":[null],"steps":[]}');
+  const { s } = source(st);
+  const r = await s.load();
+  assert.equal(r.error, "broken");
+  assert.match(r.message, /^The plan saved on this laptop can't be shown: area 1 is empty or not a \{ … \} block/);
+  assert.equal(st.m.get(V.KEY), '{"areas":[null],"steps":[]}'); // left as it is, until the person decides
+  s.pasteNew();
+  assert.deepEqual(await s.load(), { error: "no_data" }); // Paste new data opens the box
+  s.paste(ELENA);
+  assert.equal((await s.load()).data.owner, "Elena");
+
+  const again = source(storage()); again.st.m.set(V.KEY, '{"areas":[null],"steps":[]}');
+  assert.equal((await again.s.load()).error, "broken");
+  assert.deepEqual(again.s.clear(), { ok: true });
+  assert.deepEqual(await again.s.load(), { error: "no_data" });
+  assert.equal(again.s.exportSheet().ok, false); // nothing to export, and no crash
+});
+
+test("Download my sheet never throws: an exporter error becomes a plain message", () => {
+  const { s } = source(storage(), { exporter: { problems: () => [], xlsx: () => { throw new Error("boom"); } } });
+  s.paste(ELENA);
+  assert.match(s.exportSheet().error, /couldn't make your sheet.*boom/);
 });
