@@ -1,4 +1,4 @@
-/* "Export for life-crm": the data block as a life-crm sheet (.xlsx). Same tabs, columns and rules as
+/* "Download my sheet (.xlsx)": the data block as a life-crm sheet. Same tabs, columns and rules as
    tools/convert.py to-xlsx (see docs/sheet-format.md); a plain-JS .xlsx writer (text cells, stored zip). */
 var LiteExport = (function () {
   "use strict";

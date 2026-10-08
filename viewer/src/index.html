@@ -46,8 +46,8 @@
   <div class="lc-panel vw-bar" id="vbar" hidden>
     <span>Saved on this laptop only (in this browser).</span>
     <div class="tools">
-      <button class="btn dark" id="vdown" type="button">Download my page</button>
-      <button class="btn" id="vexp" type="button">Export for life-crm</button>
+      <button class="btn dark" id="vexp" type="button">Download my sheet (.xlsx)</button>
+      <button class="btn" id="vdown" type="button">Download my page</button>
       <button class="btn" id="vnew" type="button">Paste new data</button>
       <button class="btn quiet" id="vclear" type="button">Clear</button>
     </div>
@@ -107,7 +107,7 @@
   };
   $("vexp").onclick = function () {
     save(LiteExport.xlsx(data), slug() + ".xlsx");
-    say("Downloaded " + slug() + ".xlsx, a life-crm sheet. To use it: upload it to your Google Drive, then open it with Google Sheets.");
+    say("Downloaded " + slug() + ".xlsx, your life-crm sheet. To keep it in Google Drive: open drive.google.com, click New, then File upload, and choose this file. Then open it with Google Sheets (File > Save as Google Sheets).");
   };
   var saved = store.get(), r = saved && LiteCRM.parse(saved);
   if (r && r.data) show(r.data, false); else mode(false);

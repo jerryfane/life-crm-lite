@@ -11,6 +11,7 @@ The viewer embeds the finished template so "Download my page" gives exactly the 
 from __future__ import annotations
 
 import json
+import re
 import sys
 from pathlib import Path
 
@@ -23,6 +24,21 @@ def src(path: Path) -> str:
     if path.suffix == ".js" and "</script" in text.lower():
         sys.exit(f"{path}: contains '</script', which would end the inline script early")
     return text.rstrip("\n")
+
+
+def slim(path: Path) -> str:
+    """Smaller inline code, so an AI can reproduce the page in few tokens. Only safe trims: CSS loses comments and
+    the spaces around { } ; and after property colons (calc() keeps its spaces); JS loses indentation and
+    comments that start a line."""
+    text = src(path)
+    if path.suffix == ".css":
+        text = re.sub(r"/\*.*?\*/", "", text, flags=re.S)
+        text = re.sub(r"\s*([{};])\s*", r"\1", text)
+        text = re.sub(r"(?<=[\w-]):\s+", ":", text)
+        return text.replace(";}", "}").strip()
+    text = re.sub(r"^[ \t]*/\*.*?\*/[ \t]*$", "", text, flags=re.S | re.M)
+    lines = (line.strip() for line in text.splitlines())
+    return "\n".join(line for line in lines if line and not line.startswith("//"))
 
 
 def data_block(data: dict) -> str:
@@ -40,11 +56,11 @@ def fill(shell: str, parts: dict[str, str]) -> str:
 
 
 def build() -> dict[Path, str]:
-    css, js = src(PAGE / "src/render.css"), src(PAGE / "src/render.js")
+    css, js = slim(PAGE / "src/render.css"), slim(PAGE / "src/render.js")
     data = json.loads((PAGE / "fixtures/maya.json").read_text(encoding="utf-8"))
     template = fill(src(PAGE / "src/template.html") + "\n", {"DATA": data_block(data), "CSS": css, "JS": js})
     viewer = fill(src(VIEWER / "src/index.html") + "\n", {
-        "CSS": css, "JS": js, "EXPORT": src(VIEWER / "src/export.js"),
+        "CSS": css, "JS": js, "EXPORT": slim(VIEWER / "src/export.js"),
         "TEMPLATE": json.dumps(template, ensure_ascii=False).replace("</", "<\\/"),
     })
     return {PAGE / "template.html": template, VIEWER / "index.html": viewer}

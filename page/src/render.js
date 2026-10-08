@@ -194,7 +194,7 @@ var LiteCRM = (function () {
           var xa = Math.max(0, X(s.a)), xb = Math.min(W, X(s.b) + W / span * DAY), bw = Math.max(8, xb - xa);
           var inside = bw >= w + 20, l = put(xa, inside ? xb : xb + 6 + w);
           html += '<div class="it" style="left:' + xa + "px;top:" + (6 + l * LANE) + 'px;display:flex;gap:6px"' + tp + '><div class="bar' + cls + (X(s.a) < 0 ? " cut-l" : "") + (X(s.b) > W ? " cut-r" : "") +
-            '" style="width:' + bw + 'px">' + (inside ? "<span>" + t + "<em>" + e + "</em></span>" : "") + "</div>" + (inside ? "" : '<div class="lbl' + cls + '">' + t + "<em>" + e + "</em></div>") + "</div>";
+            '" style="width:' + bw + 'px">' + (inside ? "<span>" + t + "<em>" + e + "</em></span>" : "") + "</div>" + (inside ? "" : '<div class="lbl' + cls + '"><span>' + t + "<em>" + e + "</em></span></div>") + "</div>";
         } else {
           var x = X(s.d), flip = x + 16 + w > W - 4, x0 = flip ? x - 10 - w : x - 8, l2 = put(x0, flip ? x + 8 : x + 16 + w);
           html += '<div class="it ms' + cls + (flip ? " left" : "") + '" style="' + (flip ? "right:" + (W - x - 6) : "left:" + (x - 6)) + "px;top:" + (6 + l2 * LANE) + 'px"' + tp + "><i></i><span>" + t + "<em>" + e + "</em></span></div>";
