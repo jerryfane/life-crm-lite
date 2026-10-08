@@ -308,7 +308,9 @@ def build(out: Path, root: Path = ROOT, mode: str = DASHBOARD_MODE, url: str = D
     dashboard = root / "dashboard" / "dist" / "dashboard.html"
     has_dashboard = dashboard.is_file()
     # The configured steps (a published link, or copy mode) tell people the dashboard takes and keeps their
-    # sheet link: only allowed once the built dashboard has that flow (LiteSource.setSheet).
+    # sheet link. This check is only a tripwire against configuring them by mistake before that code exists;
+    # it can't prove the flow works. The real gate: set DASHBOARD_URL or copy mode only after the sheet-link PRs
+    # (#31, #33) are merged and Jerry's live test in claude.ai has read his sheet through the published dashboard.
     has_sheet_flow = has_dashboard and "setSheet" in dashboard.read_text()
     if has_dashboard:
         (out / "dashboard").mkdir()
