@@ -5,7 +5,7 @@ Goal: run the skill once in Claude and once in ChatGPT, as a participant would. 
 Room page: https://life-crm-lite.jerryfane.com
 
 ## A. Claude (Pro), about 20 min
-1. On the room page, open the **Claude** tab and follow "Make the Project": create a new Project, paste the skill (use the **Copy the skill** button) into its instructions, and add `template.html` to its files.
+1. On the room page, open the **Claude** tab and follow "Make the Project": create a new Project, and paste the skill (use the **Copy the skill** button) into its instructions.
 2. Start a chat in that Project. Say "Hi".
 3. Answer the plan question: **Claude Pro**.
 4. Talk: paste the Maya transcript from the room page (Examples → Maya), or talk about your own week for 2 minutes.
@@ -25,8 +25,8 @@ Same as A, using the **ChatGPT** tab. Also check:
 - the page appears as one HTML block, and **Preview** opens it.
 
 ## C. Free plans, about 10 min (if you have a free account, or a friend's)
-- **ChatGPT Free:** it must say "reduced version… full experience needs a paid plan", give the data block, and send you to the viewer. In the viewer: paste the block, then **Download my sheet (.xlsx)**. In Drive: upload it, open it with Google Sheets, then **File → Save as Google Sheets**.
-- **Claude Free:** does the Project accept the instructions and template.html? Does the **Google Sheets** connector show up? How far do you get before the usage limit?
+- **ChatGPT Free:** it must say "reduced version… full experience needs a paid plan", give the data block, and send you to the viewer. In the viewer: paste the block (you get the same dashboard as in Claude, with Ask and ticking off), then **Download my sheet (.xlsx)**. In Drive: upload it, open it with Google Sheets, then **File → Save as Google Sheets**.
+- **Claude Free:** does the Project accept the instructions? Does the **Google Sheets** connector show up? How far do you get before the usage limit?
 
 ## Send me
 For each of A, B and C: what worked, what broke (screenshot), and how long it took.

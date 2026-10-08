@@ -1,10 +1,11 @@
 #!/usr/bin/env python3
 """Build the dashboard as one self-contained HTML file for a Claude artifact.
 
-    python3 dashboard/build.py                          # dashboard/dist/dashboard.html with examples/maya
+    python3 dashboard/build.py                          # dashboard/dist/dashboard.html with examples/maya, and
+                                                        # the viewer, viewer/index.html
     python3 dashboard/build.py --data my.json --out x.html
-    python3 dashboard/build.py --check                  # exits 1 if dist/dashboard.html is out of date or its
-                                                        # lite-hash marker doesn't match its code
+    python3 dashboard/build.py --check                  # exits 1 if dist/dashboard.html or viewer/index.html is out
+                                                        # of date, or the dashboard's lite-hash marker doesn't match
 
 Sources: dashboard/src/style.css + lite.css (the look), bridge.js (the claude.ai artifact runtime, `claude.use`) +
 source.js (LiteSource: the viewer's sheet through their Google Sheets connector, saved copy, embedded block;
@@ -19,10 +20,16 @@ Self-check (src/selfcheck.js): in copy mode each participant's Claude retypes th
 page carries <meta name="lite-hash"> = SHA-256 of its code (every <style data-lite> and <script data-lite>, not the
 data block); at start app.js recomputes it and shows a banner when the copy isn't exact. A marker of "custom"
 (set when the design is changed on purpose) turns the check off.
+
+The viewer (/viewer/, the backup page for people not on Claude Pro): the same app.js, style.css and lite.css on
+viewer/src/source.js (the data block pasted on this laptop, in localStorage) plus viewer/src/export.js ("Download my
+sheet (.xlsx)") and viewer/src/viewer.css, in the shell viewer/src/index.html. It has a Content-Security-Policy that
+lets only its own inline script run (by SHA-256 hash), and no self-check (nobody retypes it).
 """
 from __future__ import annotations
 
 import argparse
+import base64
 import hashlib
 from html import escape as html_escape
 import json
@@ -54,11 +61,15 @@ SHELL = """<!doctype html>
 """
 
 
-def src(name: str) -> str:
-    text = (SRC / name).read_text(encoding="utf-8")
-    if name.endswith(".js") and "</script" in text.lower():
-        sys.exit(f"{name}: contains '</script', which would end the inline script early")
+def read(path: Path) -> str:
+    text = path.read_text(encoding="utf-8")
+    if path.suffix == ".js" and "</script" in text.lower():
+        sys.exit(f"{path.name}: contains '</script', which would end the inline script early")
     return text
+
+
+def src(name: str) -> str:
+    return read(SRC / name)
 
 
 def slim_css(text: str) -> str:
@@ -109,22 +120,56 @@ def build(data: dict) -> str:
     return html.replace("@HASH", code_hash(html), 1)
 
 
+VIEWER = ROOT / "viewer"
+VIEWER_OUT = VIEWER / "index.html"
+
+
+def csp(script: str) -> str:
+    """Only this exact inline script may run (by SHA-256 hash), so a script put into the data block, by an AI or by
+    hand, can't run. Inline styles and the data: favicon; nothing is fetched."""
+    digest = base64.b64encode(hashlib.sha256(script.encode("utf-8")).digest()).decode()
+    return f"default-src 'none'; script-src 'sha256-{digest}'; style-src 'unsafe-inline'; img-src data:; base-uri 'none'; form-action 'none'"
+
+
+def build_viewer() -> str:
+    """The viewer: this dashboard on viewer/src/source.js with viewer/src/export.js, in viewer/src/index.html.
+    It embeds examples/maya for "See an example"."""
+    js = slim_js("\n".join([read(VIEWER / "src/export.js"), read(VIEWER / "src/source.js"), src("app.js")]))
+    parts = {
+        "CSP": csp(js),
+        "CSS": slim_css(src("style.css") + src("lite.css") + read(VIEWER / "src/viewer.css")),
+        "DATA": json.dumps(json.loads(EXAMPLE.read_text(encoding="utf-8")), ensure_ascii=False, separators=(",", ":")).replace("<", "\\u003c"),
+        "JS": js,
+    }
+    html = re.sub(r"@(CSP|CSS|DATA|JS)\b", lambda m: parts[m.group(1)], read(VIEWER / "src/index.html"))
+    # inside a <script> only "</script" ends it; "</styleSheet>" in export.js's xlsx XML is plain text there
+    if html.lower().count("</script") != 2 or len(re.findall(r"</style[\s>/]", html, re.I)) != 1:
+        sys.exit("viewer: inlined code or data closes a script or style tag")
+    if re.findall(r"<script>(.*?)</script>", html, re.S) != [js]:
+        sys.exit("viewer: the page's script isn't the one its CSP hash allows")
+    return html
+
+
 def main() -> None:
     ap = argparse.ArgumentParser(description=__doc__.split("\n")[0])
     ap.add_argument("--data", type=Path, default=EXAMPLE, help="data block to embed (default: examples/maya)")
     ap.add_argument("--out", type=Path, default=OUT)
     ap.add_argument("--check", action="store_true")
     a = ap.parse_args()
-    html = build(json.loads(a.data.read_text(encoding="utf-8")))
+    pages = {a.out: build(json.loads(a.data.read_text(encoding="utf-8")))}
+    if a.out == OUT and a.data == EXAMPLE:  # the repo's own build: the viewer too
+        pages[VIEWER_OUT] = build_viewer()
     if a.check:
         if a.out.exists() and (problem := marker_problem(a.out.read_text(encoding="utf-8"))):
             sys.exit(f"{a.out} {problem}")
-        if not a.out.exists() or a.out.read_text(encoding="utf-8") != html:
-            sys.exit(f"{a.out} is out of date: run python3 dashboard/build.py")
+        stale = [str(p) for p, html in pages.items() if not p.exists() or p.read_text(encoding="utf-8") != html]
+        if stale:
+            sys.exit(f"{', '.join(stale)} out of date: run python3 dashboard/build.py")
         return
-    a.out.parent.mkdir(parents=True, exist_ok=True)
-    a.out.write_text(html, encoding="utf-8")
-    print(f"{a.out.relative_to(ROOT) if a.out.is_relative_to(ROOT) else a.out}: {len(html.encode())} bytes")
+    for path, html in pages.items():
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text(html, encoding="utf-8")
+        print(f"{path.relative_to(ROOT) if path.is_relative_to(ROOT) else path}: {len(html.encode())} bytes")
 
 
 if __name__ == "__main__":

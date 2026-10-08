@@ -2,6 +2,8 @@
 // a page per area, a page per list, People) plus the "What to do first" matrix and an Ask box.
 // Data: one lite data block (docs/data-contract.md) from LiteSource (src/source.js): the live sheet in
 // Drive, else the saved copy, else the block embedded in #data. adapt() turns it into life-crm's shape.
+// The viewer (/viewer/) runs this same file on viewer/src/source.js: the block pasted on this laptop, with its
+// own paste screen and toolbar (SRC.screen/SRC.toolbar), and Ask and ticking off (SRC.readOnly).
 // "Today" is computed here. Testing aid: ?today=YYYY-MM-DD pretends the current date.
 (() => {
   "use strict";
@@ -523,6 +525,8 @@
   }
   let loading = false;
   function sourceLine() {
+    // a source that names itself (the viewer: "On this laptop", "Example data") has nothing to refresh
+    if (META.label) return h("span", { class: "src" }, h("i", { class: `src-${META.source}` }), META.label);
     return h("span", { class: "src" }, h("i", { class: `src-${META.source || "embedded"}` }), sourceText(),
       META.error ? h("span", { class: "src-err", title: META.error }, ` · couldn't read the sheet`) : null,
       h("button", { type: "button", class: "btn sm", disabled: loading, onclick: refresh }, loading ? "Refreshing…" : "Refresh"));
@@ -590,7 +594,7 @@
       const st = s.status === "waiting" && who ? `Waiting on ${who}` : [STATUS_WORD[s.status], who && `Waiting on ${who}`].filter(Boolean).join(" · ");
       const meta = [st && h("span", { class: s.status === "stuck" ? "st-stuck" : "" }, st), byId.get(s.timeline).name, s.repeat && `↻ ${s.repeat}`].filter(Boolean);
       return h("li", withColor(byId.get(s.timeline), { title: s.notes || null }),
-        h("button", { type: "button", class: "ck", title: "Mark done", "aria-label": `Mark "${s.title}" done`, disabled: !s.id, onclick: () => markDone(s) }),
+        h("button", { type: "button", class: "ck", title: SRC.readOnly || "Mark done", "aria-label": `Mark "${s.title}" done`, disabled: !s.id || !!SRC.readOnly, onclick: () => markDone(s) }),
         h("div", { class: "mx-r" }, h("div", { class: "mx-b" }, h("div", { class: "mx-t" }, s.title),
           h("div", { class: "mx-m" }, meta.map((m, k) => [k ? h("span", { class: "sep" }, "·") : null, m]))),
           d ? h("span", { class: `mx-d${late ? " hot" : ""}` }, s.kind === "period" && iso(s.start) <= TODAY ? `ends ${fmtDue(d, s.approx)}` : fmtDue(d, s.approx)) : null));
@@ -606,6 +610,7 @@
   // ---------- ask: a question about the plan, answered by Claude with the data as context ----------
   const ask = { q: "", a: "", err: "", busy: false };
   function askBox() {
+    if (SRC.readOnly) return h("p", { class: "ask-off" }, SRC.readOnly);
     const input = h("input", { type: "text", placeholder: "Ask about your plan… e.g. what should I do this week?", value: ask.q, "aria-label": "Ask about your plan",
       oninput: (ev) => { ask.q = ev.target.value; } });
     const send = async (ev) => {
@@ -1009,12 +1014,33 @@
       conn.err ? h("p", { class: "gate-err", role: "alert" }, conn.err) : null));
   }
 
+  // A source with its own screens (the viewer, viewer/src/source.js) gets app.js's DOM helper and a way to reload.
+  const ui = { h, reload: () => refresh() };
+  // A plan that can't be drawn never leaves a blank page: a plain card, with the source's toolbar (the viewer: Paste
+  // new data, Clear, Download my sheet) or a Refresh button. broken = what to tell the person.
+  let broken = "";
+  function brokenView() {
+    let bar = null;
+    try { bar = SRC.toolbar ? SRC.toolbar(ui) : null; } catch (e) { bar = null; }
+    return h("div", { class: "broken" }, bar, h("div", { class: "gate" }, h("div", { class: "gate-card", role: "alert" },
+      h("h1", {}, "Your plan can't be shown"), h("p", {}, broken),
+      SRC.toolbar ? null : h("button", { type: "button", class: "btn dark", onclick: () => refresh() }, "Refresh"))));
+  }
+  function fail(e) {
+    gate = "broken";
+    broken = `Something in this plan can't be drawn (${String(e && e.message || e).slice(0, 160)}). ` +
+      (SRC.toolbar ? "Paste a new data block from your AI, or clear this one." : "Check your sheet, then refresh.");
+    try { draw(); } catch (e2) { shell.replaceChildren(h("p", { class: "gate-wait" }, broken)); }
+  }
   function render() {
+    try { draw(); } catch (e) { fail(e); }
+  }
+  function draw() {
     hideTip();
     if (gate) {
-      shell.replaceChildren(gateView());
+      shell.replaceChildren(gate === "no_data" ? SRC.screen(ui) : gate === "broken" ? brokenView() : gateView());
       current = null; lastRoute = null;
-      document.title = gate === "no_sheet" ? "Connect your life CRM" : "My plan";
+      document.title = gate === "no_sheet" ? "Connect your life CRM" : gate === "no_data" ? "See your life CRM" : "My plan";
       return;
     }
     let key = "roadmap", title = "Overview", view;
@@ -1031,15 +1057,15 @@
     shell.classList.remove("open");
     shell.replaceChildren(sidebar(key), h("div", { class: "shell-main" },
       h("div", { class: "mbar" }, h("button", { type: "button", "aria-label": "Open menu", onclick: () => shell.classList.add("open") }, "☰ Menu"), h("span", {}, title)),
-      view.el));
+      SRC.toolbar ? SRC.toolbar(ui) : null, view.el));
     current = view;
     view.layout();
     window.scrollTo(0, keepScroll);
     lastRoute = key;
     document.title = key === "roadmap" ? DATA.title : `${title} · ${DATA.title}`;
   }
-  // Only "no_runtime"/"no_sheet", or an error with none of the viewer's data, leave the dashboard. A read error with
-  // their saved copy (source "cache") shows that copy plus a note, also right after Connect.
+  // Only "no_runtime"/"no_sheet"/"no_data"/"broken", or an error with none of the viewer's data, leave the dashboard.
+  // A read error with their saved copy (source "cache") shows that copy plus a note, also right after Connect.
   async function refresh() {
     loading = true;
     if (!gate) render();
@@ -1049,13 +1075,14 @@
     loading = false; conn.busy = false;
     const err = r && r.error;
     if (note && note.read) note = null;
-    if (err === "no_runtime" || err === "no_sheet") gate = err;
+    if (err === "broken") { gate = "broken"; broken = r.message || "This plan can't be shown."; }
+    else if (err === "no_runtime" || err === "no_sheet" || err === "no_data") gate = err;
     else if (!(r && r.data && Array.isArray(r.data.areas)) || (err && r.source === "embedded")) {
       // the sheet can't be read and there is no saved copy of it: never show the example as if it were theirs
       gate = "no_sheet"; conn.url = sheet && sheet.url || conn.url; conn.err = err || "Couldn't read your sheet. Try again.";
     } else {
       gate = "";
-      setData(r.data, { source: r.source, at: r.at, error: err });
+      try { setData(r.data, { source: r.source, at: r.at, error: err, label: r.label }); } catch (e) { return fail(e); }
       if (err) note = { at: "top", read: true, text: `${err.replace(/\.?$/, ".")} Showing your saved copy from ${relTime(r.at)}.` };
     }
     render();
@@ -1067,8 +1094,8 @@
     clearTimeout(rt);
     rt = setTimeout(() => current && current.layout(), 120);
   });
-  // First paint from the embedded block, then the live sheet replaces it.
-  setData(EMBEDDED, { source: "embedded", at: "" });
+  // First paint from the embedded block, then the live sheet replaces it. A block that can't be drawn shows the card.
+  try { setData(EMBEDDED, { source: "embedded", at: "" }); } catch (e) { fail(e); }
   refresh();
   // A copy retyped with a changed or missing character (copy mode): one calm banner above everything; the page still runs.
   if (typeof LiteCheck !== "undefined") LiteCheck.check(document, window.crypto && crypto.subtle).then((ok) => {

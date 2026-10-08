@@ -1,6 +1,6 @@
 # life-crm lite: shared data contract (v1)
 
-Every part reads and writes the same **data block**: one JSON object. The skill outputs it, the page template embeds it, the viewer pastes it, and the converter turns it into the life-crm sheet and back. The sheet in the user's Drive is the source of truth; this block is the page's copy of it.
+Every part reads and writes the same **data block**: one JSON object. The skill outputs it, the dashboard embeds it, the viewer pastes it, and the converter turns it into the life-crm sheet and back. The sheet in the user's Drive is the source of truth; this block is the page's copy of it.
 
 ```json
 {
