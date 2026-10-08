@@ -559,7 +559,7 @@
   const STATUS_WORD = { doing: "Doing", waiting: "Waiting", stuck: "Stuck", "to book": "To book" };
   let note = null; // { text } after a failed save, shown until dismissed
   function notice() {
-    return note ? h("div", { class: "note", role: "status" }, h("span", {}, note), h("button", { type: "button", class: "btn sm", onclick: () => { note = null; render(); } }, "OK")) : null;
+    return note ? h("div", { class: "lnote", role: "status" }, h("span", {}, note), h("button", { type: "button", class: "btn sm", onclick: () => { note = null; render(); } }, "OK")) : null;
   }
   async function markDone(s) {
     const raw = LITE.steps.find((x) => x.id === s.id);
@@ -571,7 +571,7 @@
     try { r = await SRC.markDone(s.id); } catch (e) { r = { ok: false, error: String(e && e.message || e) }; }
     if (r && r.ok) return;
     raw.status = was;
-    note = `Couldn't save "${s.title}" as done in your sheet${r && r.error ? ` (${r.error})` : ""}. It's back on the list.`;
+    note = `${r && r.error ? r.error.replace(/\.?$/, ".") : `Couldn't mark "${s.title}" done in your sheet.`} It's back on the list.`;
     setData(LITE); render();
   }
   function matrix() {
@@ -997,7 +997,7 @@
         h("li", {}, h("b", {}, "Paste the link of your sheet"), " below. It's the sheet called “", h("i", {}, "your name"), "'s life CRM” in your Google Drive.")),
       h("label", { for: "sheet-url" }, "Link to your sheet"),
       h("div", { class: "gate-row" },
-        h("input", { id: "sheet-url", type: "url", inputmode: "url", autocomplete: "off", spellcheck: "false", value: conn.url,
+        h("input", { id: "sheet-url", type: "text", inputmode: "url", autocomplete: "off", spellcheck: "false", value: conn.url,
           placeholder: "https://docs.google.com/spreadsheets/d/…", oninput: (e) => { conn.url = e.target.value; } }),
         h("button", { class: "btn dark", disabled: conn.busy }, conn.busy ? "Connecting…" : "Connect")),
       conn.err ? h("p", { class: "gate-err", role: "alert" }, conn.err) : null));

@@ -6,7 +6,7 @@
 .btn.sm { height: 28px; padding: 0 10px; font-size: 12.5px; cursor: pointer; }
 .btn:disabled { opacity: .6; cursor: default; }
 .top p.tone { color: var(--ink); font-style: italic; margin-top: 6px; }
-.note { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 14px; padding: 10px 14px; border-radius: 10px; background: #fef2f2; border: 1px solid #fecaca; color: #991b1b; font-size: 13.5px; }
+.lnote { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 14px; padding: 10px 14px; border-radius: 10px; background: #fef2f2; border: 1px solid #fecaca; color: #991b1b; font-size: 13.5px; }
 
 .ask { margin-bottom: 16px; }
 .ask form { display: flex; gap: 8px; }
