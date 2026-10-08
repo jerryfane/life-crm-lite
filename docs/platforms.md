@@ -27,8 +27,8 @@ Short answers. Every cell is explained, with its link, in sections 2 to 6. Sourc
 | **Project instructions: long skill OK? Length limit?** | Yes, "Set project instructions". No limit published; docs say keep them concise. Limit UNVERIFIED [C2][C3] | Same as Free. Limit UNVERIFIED [C2][C3] | Yes, ••• > Project settings. No limit published. Limit UNVERIFIED; total context is small (27K tokens for Instant). VERIFIED [O1][O2] | Same as Free; context 54K tokens. Limit UNVERIFIED [O1][O2] |
 | **Google Drive connector** | Yes ("available for all users"). VERIFIED [C4][C5] | Yes. VERIFIED [C4][C5] | Probably **not**: pricing table says "Apps connecting to internal tools: No" for Free. UNVERIFIED that Drive counts as one [O2][O3] | Yes. VERIFIED [O2][O3][O4] |
 | **Connect / switch account** | Customize > Connectors > Google Drive > Connect. Switch: Disconnect, then Connect with the other account. VERIFIED [C4][C5] | Same. VERIFIED [C4][C5] | (if available) same as Plus. UNVERIFIED | Settings > Plugins > Google Drive > Connect. Switch: Connected accounts > Connect another account, or ••• > Disconnect and connect again. VERIFIED [O4][O5] |
-| **Create a new Google Sheet** | Yes, beta, through the separate **Google Sheets** connector. VERIFIED [C4] | Yes, beta. VERIFIED [C4] | Probably not in chat (no Drive app; Work on web is paid only). INFERENCE [O2][O6] | Yes, "where supported" (documented for **Work** mode; in plain chat UNVERIFIED). VERIFIED [O3][O6] |
-| **Edit cells of an existing Sheet** | Yes, beta, "live in a pane beside the chat" on web (Chrome) and Desktop. VERIFIED [C4] | Yes, beta. VERIFIED [C4] | Probably not. INFERENCE [O2] | Yes, "ChatGPT can update the source file directly", "where supported and authorized". VERIFIED [O3][O7] |
+| **Create a new Google Sheet** | Probably, beta, through the separate **Google Sheets** connector, but the page doesn't say which plans get it. UNVERIFIED for Free (first Friday check) [C4] | Yes, beta. The plan for the Sheets connector isn't stated either; INFERENCE that Pro has it [C4] | Probably not in chat (no Drive app; Work on web is paid only). INFERENCE [O2][O6] | Yes, "where supported" (documented for **Work** mode; in plain chat UNVERIFIED). VERIFIED [O3][O6] |
+| **Edit cells of an existing Sheet** | Same connector, "live in a pane beside the chat" on web (Chrome) and Desktop. UNVERIFIED for Free [C4] | Yes, beta. INFERENCE as above [C4] | Probably not. INFERENCE [O2] | Yes, "ChatGPT can update the source file directly", "where supported and authorized". VERIFIED [O3][O7] |
 | **Interactive page (HTML + JS)** | Artifacts: yes on Free, needs "Code execution and file creation" on. VERIFIED [C6] | Yes, plus artifacts can **store data** and **connect to your apps**. VERIFIED [C6] | Canvas retired; HTML **code block Preview** instead. Free availability UNVERIFIED [O7][O8] | HTML code block **Preview**. VERIFIED [O8] (JS running: INFERENCE, React previews are listed) |
 | **Page reads data from the chat?** | No: the page holds the data Claude writes into it. INFERENCE [C6] | Same, but an artifact can also read/write connected apps. VERIFIED [C6] (reading a Google Sheet from the artifact: UNVERIFIED) | No: data goes inside the code. INFERENCE [O8] | Same. INFERENCE [O8] |
 | **Page on phone apps** | Viewable in the **Artifacts** tab of the iOS/Android app; editing on web/desktop. VERIFIED [C6] | Same. VERIFIED [C6] | UNVERIFIED ("varies by device") [O8] | UNVERIFIED ("varies by device") [O8] |
@@ -66,12 +66,12 @@ Short answers. Every cell is explained, with its link, in sections 2 to 6. Sourc
 
 ### Claude (Free and Pro)
 
-- Availability: *"Google Workspace connectors (Gmail, Google Calendar, and Google Drive) are available for all users on Claude and Claude Desktop."* VERIFIED, [Use Google Workspace connectors](https://support.claude.com/en/articles/10166901-use-google-workspace-connectors).
+- Availability: *"Google Workspace connectors (Gmail, Google Calendar, and Google Drive) are available for all users on Claude and Claude Desktop."* VERIFIED, [Use Google Workspace connectors](https://support.claude.com/en/articles/10166901-use-google-workspace-connectors). That sentence names only Gmail, Calendar and Drive. The page does not say which plans get the separate **Google Docs, Sheets and Slides** connectors, so Sheets creation and editing on **Claude Free is UNVERIFIED** (first Friday check).
 - Connect: *"Go to Customize > Connectors in claude.ai … Find Google Drive in the list and select Connect … Sign in to your Google account and grant the requested permissions."* When it works, the button changes to **Disconnect**. VERIFIED, [Claude Docs: Google Drive](https://claude.com/docs/connectors/google/drive).
 - Turn it on in a chat: *"select + at the lower left of the message box, select Connectors, and turn on Google Drive."* VERIFIED, same page.
 - Switch account: Customize > Connectors > **Google Drive** under "Your connectors" > **Disconnect**, then **Connect** and sign in with the other account. VERIFIED, [Claude Docs: Google Drive](https://claude.com/docs/connectors/google/drive) ("Disconnect … so you can sign in again later") and [Use Google Workspace connectors](https://support.claude.com/en/articles/10166901-use-google-workspace-connectors) (Troubleshooting > Reconnecting). One Google account per connector at a time: INFERENCE (no page mentions several accounts).
 - What the **Drive** connector does: search, read Sheets (as CSV, every tab), *"Upload any file type, with optional auto-convert to Google formats"*, create folders, share/move/trash with approval. VERIFIED, [Use Google Workspace connectors](https://support.claude.com/en/articles/10166901-use-google-workspace-connectors) and [Claude Docs: Google Drive](https://claude.com/docs/connectors/google/drive).
-- **Create and edit Sheets** is a separate connector: *"Create new Google Docs, Sheets, and Slides files"* and *"Edit files live in a pane beside the chat (beta)"*. *"These are separate connectors from Google Drive."* VERIFIED, [Use Google Workspace connectors](https://support.claude.com/en/articles/10166901-use-google-workspace-connectors). No plan restriction is mentioned for the beta.
+- **Create and edit Sheets** is a separate connector: *"Create new Google Docs, Sheets, and Slides files"* and *"Edit files live in a pane beside the chat (beta)"*. *"These are separate connectors from Google Drive."* VERIFIED, [Use Google Workspace connectors](https://support.claude.com/en/articles/10166901-use-google-workspace-connectors). The page names no plans for these connectors, neither to include Free nor to exclude it. UNVERIFIED for Free.
   - Turn it on: *"Click the plus sign in the chat, hover over 'Connectors,' and toggle them on. If the connector isn't turned on when you ask Claude to edit a Google file, Claude prompts you to connect it."* VERIFIED, same page.
   - The skill must say **"Google Sheet"**: *"Asking for a generic 'doc' or 'deck' without naming Google creates a local file instead."* VERIFIED, same page.
   - Where the pane shows: *"on Claude on the web in Chrome, and on Claude Desktop when the built-in browser is turned on … If the pane isn't available, select 'Open in Google' on the file card."* VERIFIED, same page. INFERENCE: on Safari/Firefox/Edge the edit still happens; people just open the Sheet in a new tab.
@@ -172,16 +172,16 @@ Short answers. Every cell is explained, with its link, in sections 2 to 6. Sourc
 | Plan | Path | What they get | What to watch |
 | --- | --- | --- | --- |
 | **Claude Pro** | **Full** | Project with the skill; Google Drive + Google Sheets connectors create and fill the life-crm Sheet; artifact page (timeline, matrix). | Sheets editing is beta. If it fails: Claude uploads the `.xlsx` with auto-convert, or the viewer. |
-| **Claude Free** | **Full, with the viewer as backup** | Same as Pro on paper: Projects, both connectors and artifacts are all on Free. | 5-hour session limit. If the limit message appears, the skill's last data block goes into the viewer. |
+| **Claude Free** | **Full, with the viewer as backup** | Same as Pro on paper: Projects, the Drive connector and artifacts are all on Free (VERIFIED). The Google Sheets connector on Free is UNVERIFIED (first Friday check). | 5-hour session limit. If the limit message appears, or Sheets creation isn't offered, the skill's last data block goes into the viewer. |
 | **ChatGPT Plus** | **Full** | Project with the skill; Google Drive app creates/updates the Sheet (use the **Work** toggle if plain chat can't create it); page as an HTML code block with **Preview**. | Creating a Sheet from plain Chat is UNVERIFIED. Leave the project on Default memory (Work is off in project-only memory). |
-| **ChatGPT Free** | **Reduced: viewer fallback** | Project with the skill (short version); the conversation and follow-up questions; the skill prints the **data block**; our **viewer** shows the timeline and matrix and downloads the life-crm `.xlsx`; they upload it to their Drive (Google converts it to a Sheet). | No Drive app (treat as unavailable), 27K-token context. Daily updates afterwards: they paste the new data block into the viewer, or upgrade. |
+| **ChatGPT Free** | **Reduced: viewer fallback** | Project with the skill (short version); the conversation and follow-up questions; the skill prints the **data block**; our **viewer** shows the timeline and matrix and downloads the life-crm `.xlsx`; they upload it to Drive and save it as a Google Sheet (steps in section 8). | No Drive app (treat as unavailable), 27K-token context. Daily updates afterwards: they paste the new data block into the viewer, or upgrade. |
 
 Notes for the other slices (INFERENCE, for the coordinator):
 
 - The model can't see the user's plan, and no help page says it can. The skill should **ask** ("Are you on Claude Free, Claude Pro, ChatGPT Free or ChatGPT Plus?") or try the connector and react to what happens, rather than guess.
 - Replace "ChatGPT Canvas" with "the page (an HTML preview in ChatGPT)" in the skill and room page.
 - The skill must ask for a **Google Sheet** by name on Claude (otherwise Claude makes a local file).
-- The viewer needs a "Download as life-crm sheet (.xlsx)" button for ChatGPT Free; Google Drive turns an uploaded `.xlsx` into a Sheet when opened with Google Sheets.
+- The viewer needs a "Download as life-crm sheet (.xlsx)" button for ChatGPT Free (and for Claude Free if the limit runs out). An uploaded `.xlsx` stays an Excel file in Drive by default; it becomes a Google Sheet only after **File > Save as Google Sheets**, or if "Convert uploads" was turned on in Drive settings before uploading. VERIFIED, [Use both Excel & Sheets](https://support.google.com/docs/answer/9331167) and [Upload files & folders to Google Drive](https://support.google.com/drive/answer/2424368).
 
 ---
 
@@ -211,7 +211,7 @@ Source: [Create and edit files with Claude](https://support.claude.com/en/articl
 Source: [Claude Docs: Google Drive](https://claude.com/docs/connectors/google/drive) (VERIFIED).
 
 **Turn on Drive and Sheets in your chat**
-- In the chat, click **+** (bottom left of the message box) > **Connectors** > switch on **Google Drive** and **Google Sheets**. If Sheets isn't connected yet, Claude asks you to connect it when it needs it.
+- In the chat, click **+** (bottom left of the message box) > **Connectors** > switch on **Google Drive** and **Google Sheets**. If Sheets isn't connected yet, Claude asks you to connect it when it needs it. (On Claude Free, whether **Google Sheets** appears is still being checked; if it doesn't, use the viewer steps at the end of this section.)
 
 Source: [Use Google Workspace connectors](https://support.claude.com/en/articles/10166901-use-google-workspace-connectors) (VERIFIED).
 
@@ -253,22 +253,29 @@ Source: [Connecting and managing app accounts](https://help.openai.com/en/articl
 
 Source: [Working with writing blocks and code blocks](https://help.openai.com/en/articles/20001246-working-with-writing-blocks-and-code-blocks-in-chatgpt) (VERIFIED).
 
-**ChatGPT Free**
-- Skip "Connect Google Drive". At the end, copy the data block ChatGPT gives you, paste it into the viewer on this page, click download, and upload the file to your Google Drive.
+**ChatGPT Free (or if anything above doesn't work)**
+1. Copy the data block ChatGPT gives you, paste it into the viewer on this page, and click download. You get a `.xlsx` file.
+2. Go to **drive.google.com**, click **New** > **File upload**, and choose that file.
+3. Double-click the file in Drive. It opens in Google Sheets.
+4. Click **File** > **Save as Google Sheets**. Use this new copy from now on.
+
+Optional, before step 2: in Drive click **Settings** (the gear, top right) > **Settings**, and next to **Convert uploads** turn on **Convert uploaded files to Google Docs editor format**. Then the upload becomes a Google Sheet by itself and you can skip step 4.
+
+Source: [Use both Excel & Sheets: Best practices](https://support.google.com/docs/answer/9331167) ("Convert Excel files to Sheets") and [Upload files & folders to Google Drive](https://support.google.com/drive/answer/2424368) (VERIFIED, read 8 Oct 2026).
 
 ---
 
 ## 9. Free-plan notice for the skill
 
-Two sentences, following the wording agreed in #1. The skill picks the one that matches the plan the person tells it.
+The skill picks the one that matches the plan the person tells it. Only ChatGPT Free gets the "reduced version" notice; Claude Free follows the full path.
 
 **ChatGPT Free**
 
 > You're on a free plan, so you'll get a reduced version: I can't save the sheet in your Google Drive or keep the page updated for you, so I'll give you your data to paste into the life-crm viewer, which shows your page and gives you the sheet file to upload. The full experience needs a paid plan (ChatGPT Plus).
 
-**Claude Free**
+**Claude Free** (full path, short note only)
 
-> You're on a free plan, so you'll get a reduced version: you have a smaller allowance that resets every five hours, so if we run out halfway I'll give you your data to paste into the life-crm viewer instead. The full experience needs a paid plan (Claude Pro).
+> Your free plan can do everything we need today, but its usage allowance resets every five hours, so if it runs out halfway I'll give you your data to paste into the life-crm viewer instead. We're still checking that free accounts can create the Google Sheet, so if that step isn't offered, the viewer gives you the sheet file to upload.
 
 ---
 
@@ -276,12 +283,13 @@ Two sentences, following the wording agreed in #1. The skill picks the one that 
 
 The UNVERIFIED items above, in the order they matter:
 
-1. ChatGPT Free: does **Settings > Plugins > Google Drive** offer **Connect**, or is it blocked?
-2. ChatGPT Plus: in a normal Project chat (not Work), does "create a Google Sheet called life-crm in my Drive" work? If not, does it work with the **Work** toggle?
-3. ChatGPT Free and Plus: does the HTML code block show **Preview**, and do the countdowns (JavaScript) run? Does it show on the phone app?
-4. Claude Free: can you set project instructions (one help page says paid only)? Does the Google Sheets connector create and fill the Sheet?
-5. Both: how long a skill can the project instructions hold without being cut off?
-6. Claude: does Google Sheets have its own Disconnect, for switching accounts?
+1. Claude Free: in a chat, does **+** > **Connectors** offer **Google Sheets**, and does "create a Google Sheet called life-crm" create and fill it? (The help page only confirms Drive, Gmail and Calendar for all users.)
+2. ChatGPT Free: does **Settings > Plugins > Google Drive** offer **Connect**, or is it blocked?
+3. ChatGPT Plus: in a normal Project chat (not Work), does "create a Google Sheet called life-crm in my Drive" work? If not, does it work with the **Work** toggle?
+4. ChatGPT Free and Plus: does the HTML code block show **Preview**, and do the countdowns (JavaScript) run? Does it show on the phone app?
+5. Claude Free: can you set project instructions (one help page says paid only)?
+6. Both: how long a skill can the project instructions hold without being cut off?
+7. Claude: does Google Sheets have its own Disconnect, for switching accounts?
 
 ---
 
@@ -313,3 +321,7 @@ ChatGPT (OpenAI)
 - [O9] Developer mode and MCP apps in ChatGPT https://help.openai.com/en/articles/12584461-developer-mode-and-mcp-apps-in-chatgpt
 - [O10] ChatGPT Free Tier FAQ https://help.openai.com/en/articles/9275245-chatgpt-free-tier-faq
 - Also used: ChatGPT Custom Instructions https://help.openai.com/en/articles/8096356-chatgpt-custom-instructions ; Troubleshooting plugins & apps https://help.openai.com/en/articles/20001497 ; Google app data controls FAQ https://help.openai.com/en/articles/10408842 ; ChatGPT for Excel and Google Sheets https://help.openai.com/en/articles/20001063-chatgpt-for-excel-and-google-sheets
+
+Google
+- [G1] Use both Excel & Sheets: Best practices (Convert Excel files to Sheets) https://support.google.com/docs/answer/9331167
+- [G2] Upload files & folders to Google Drive (Convert documents into Google formats) https://support.google.com/drive/answer/2424368
