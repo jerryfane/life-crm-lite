@@ -113,6 +113,8 @@
     say("Downloaded " + slug() + ".html. Open it any time, even offline.");
   };
   $("vexp").onclick = function () {
+    var p = LiteExport.problems(data);
+    if (p.length) return say("I can't make your sheet yet: some names would land in the same sheet column, and one would overwrite the other. Ask your AI to rename them, then paste the new data block. " + p.join(". ") + ".");
     save(LiteExport.xlsx(data), slug() + ".xlsx");
     say("Downloaded " + slug() + ".xlsx, your life-crm sheet. To keep it in Google Drive: open drive.google.com, click New, then File upload, and choose this file. Then open it with Google Sheets (File > Save as Google Sheets).");
   };
