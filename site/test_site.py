@@ -74,12 +74,17 @@ class Build(unittest.TestCase):
         self.tmp = Path(tempfile.mkdtemp())
         self.addCleanup(shutil.rmtree, self.tmp)
 
-    def run_build(self) -> tuple[Path, str]:
+    def run_build(self, **kw) -> tuple[Path, str]:
         out = self.tmp / "dist"
         err = io.StringIO()
         with contextlib.redirect_stdout(io.StringIO()), contextlib.redirect_stderr(err):
-            build.build(out, self.tmp)
+            build.build(out, self.tmp, **kw)
         return out, err.getvalue()
+
+    def add_dashboard(self, sheet_flow=False):
+        (self.tmp / "dashboard" / "dist").mkdir(parents=True)
+        body = "<!doctype html><title>d</title>" + ("<script>LiteSource.setSheet</script>" if sheet_flow else "")
+        (self.tmp / "dashboard" / "dist" / "dashboard.html").write_text(body)
 
     def test_without_inputs(self):
         out, _ = self.run_build()
@@ -87,16 +92,55 @@ class Build(unittest.TestCase):
         self.assertIn("coming soon", index)
         self.assertNotIn("{{", index)
         self.assertTrue((out / "viewer" / "index.html").is_file())
-        self.assertNotIn("template.html", index)  # no step to add a file that isn't there
+        self.assertTrue((out / "dashboard" / "index.html").is_file())
+        self.assertNotIn("ChatGPT", index)
+        self.assertIn('href="/viewer/">backup page</a>', index)
 
-    def test_template_step_only_with_template(self):
-        (self.tmp / "page").mkdir()
-        (self.tmp / "page" / "template.html").write_text("<!doctype html><title>t</title>")
-        out, _ = self.run_build()
+    def test_default_is_published(self):
+        self.assertEqual(build.DASHBOARD_MODE, "published")
+        self.assertEqual(build.build.__defaults__[1:], (build.DASHBOARD_MODE, build.DASHBOARD_URL))
+
+    def test_published_empty_url(self):
+        self.add_dashboard()
+        out, _ = self.run_build(mode="published", url="")
         index = (out / "index.html").read_text()
-        self.assertEqual(index.count('download="template.html"'), 2)  # Claude and ChatGPT tabs
-        self.assertIn("then add the page file to it", index)
-        self.assertTrue((out / "page" / "template.html").is_file())
+        self.assertIn("Link coming Saturday", index)
+        # No promise about how the unpublished dashboard behaves.
+        self.assertNotIn("asks for your sheet", index)
+        self.assertNotIn("Open the dashboard</a>", index)
+        self.assertNotIn('download="dashboard.html"', index)
+        self.assertEqual((out / "dashboard" / "index.html").read_text(), "<!doctype html><title>d</title>")
+
+    def test_configured_paths_need_the_sheet_link_flow(self):
+        # Without the dashboard's sheet-link flow, a link or copy mode would promise what the dashboard can't do.
+        self.add_dashboard()
+        for kw in ({"url": "https://claude.ai/public/artifacts/x"}, {"mode": "copy"}):
+            with self.assertRaises(SystemExit, msg=kw):
+                self.run_build(**kw)
+
+    def test_published_with_url(self):
+        self.add_dashboard(sheet_flow=True)
+        out, _ = self.run_build(mode="published", url="https://claude.ai/public/artifacts/x?a=1&b=2")
+        index = (out / "index.html").read_text()
+        self.assertIn('href="https://claude.ai/public/artifacts/x?a=1&amp;b=2"', index)
+        self.assertNotIn("Link coming Saturday", index)
+        self.assertIn("asks for your sheet", index)
+        self.assertIn("Sign in to <b>claude.ai</b>", index)
+
+    def test_bad_url_or_mode_refused(self):
+        for kw in ({"url": "javascript:alert(1)"}, {"mode": "both"}):
+            with self.assertRaises(SystemExit, msg=kw):
+                self.run_build(**kw)
+
+    def test_copy_mode(self):
+        self.add_dashboard(sheet_flow=True)
+        out, _ = self.run_build(mode="copy", url="https://claude.ai/x")
+        index = (out / "index.html").read_text()
+        self.assertEqual(index.count('download="dashboard.html"'), 2)  # Project files step and dashboard step
+        self.assertIn("then add the dashboard file to it", index)
+        self.assertNotIn("Link coming Saturday", index)
+        self.assertNotIn("https://claude.ai/x", index)
+        self.assertTrue((out / "dashboard" / "dashboard.html").is_file())
 
     def test_hostile_inputs_are_escaped(self):
         bad = 'x"><img src=x onerror=alert(1)>'
