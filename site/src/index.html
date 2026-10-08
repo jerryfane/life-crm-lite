@@ -1,0 +1,234 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="color-scheme" content="light only">
+<title>life-crm lite · your life CRM in a few minutes</title>
+<meta name="description" content="Copy the skill, paste it into Claude or ChatGPT and talk for a few minutes. You get a Google Sheet in your Drive, a live page and an assistant.">
+<meta property="og:title" content="life-crm lite · your life CRM in a few minutes">
+<meta property="og:description" content="Copy the skill, paste it into Claude or ChatGPT and talk for a few minutes. You get a Google Sheet in your Drive, a live page and an assistant.">
+<link rel="canonical" href="{{SITE_URL}}">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3E%3Crect width='16' height='16' rx='4' fill='%231d1d1f'/%3E%3Crect x='3' y='4' width='6' height='2' rx='1' fill='%23fff'/%3E%3Crect x='6' y='7' width='7' height='2' rx='1' fill='%23ff7a1a'/%3E%3Crect x='4' y='10' width='5' height='2' rx='1' fill='%23fff'/%3E%3C/svg%3E">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap">
+<link rel="stylesheet" href="/style.css">
+</head>
+<body>
+
+<header class="nav">
+  <div class="wrap">
+    <a class="logo" href="/" aria-label="life-crm lite home"><svg viewBox="0 0 24 24" aria-hidden="true"><rect width="24" height="24" rx="6" fill="#1d1d1f"/><rect x="5" y="7" width="8" height="2" rx="1" fill="#fff"/><rect x="9" y="11" width="10" height="2" rx="1" fill="#ff7a1a"/><rect x="7" y="15" width="7" height="2" rx="1" fill="#fff"/></svg>life-crm <small>lite</small></a>
+    <nav aria-label="Main">
+      <a href="#steps">Steps</a>
+      <a href="#talk">Talk</a>
+      <a href="#drive">Set up</a>
+      <a href="#examples">Examples</a>
+      <a href="/viewer/">Viewer</a>
+    </nav>
+  </div>
+</header>
+
+<main>
+  <section class="hero">
+    <div class="wrap">
+      <div>
+        <p class="eyebrow">life-crm training · Sunday 11 October</p>
+        <h1>Talk for a few minutes. Get your life CRM.</h1>
+        <p class="sub">Copy the skill, paste it into Claude or ChatGPT, and talk about what matters to you right now. It asks a few good questions, then sets everything up for you.</p>
+        <div class="cta">
+          <button class="btn big" type="button" data-copy-skill disabled><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="8" y="8" width="12" height="12" rx="3" fill="none" stroke="currentColor" stroke-width="2"/><path d="M16 8V6a2 2 0 0 0-2-2H6a2 2 0 0 0-2 2v8a2 2 0 0 0 2 2h2" fill="none" stroke="currentColor" stroke-width="2"/></svg>Copy the skill</button>
+          <a class="more" href="/skill/">Read the skill</a>
+        </div>
+        <p class="copied" data-copied role="status">{{SKILL_NOTE}}</p>
+        <textarea data-skill hidden readonly aria-hidden="true">{{SKILL_TEXT}}</textarea>
+      </div>
+
+      <aside class="get" aria-labelledby="get-h">
+        <h2 id="get-h">What you’ll get</h2>
+        <ul>
+          <li><span class="ico"><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="4" y="3" width="16" height="18" rx="3" fill="none" stroke="currentColor" stroke-width="1.8"/><path d="M4 9h16M4 15h16M10 9v12" stroke="currentColor" stroke-width="1.8"/></svg></span>
+            <div><b>A sheet in your Google Drive</b><span>Your life CRM as a Google Sheet that you own. Same format as the full life-crm, so you can move to it later without converting anything.</span></div></li>
+          <li><span class="ico"><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="4" width="18" height="16" rx="3" fill="none" stroke="currentColor" stroke-width="1.8"/><path d="M7 9h6M10 12.5h7M7 16h5" stroke="#ff7a1a" stroke-width="1.8" stroke-linecap="round"/></svg></span>
+            <div><b>Your page</b><span>A live page inside Claude or ChatGPT: your timeline first, then a matrix of what to do now, schedule, delegate or drop.</span></div></li>
+          <li><span class="ico"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 5h14a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2h-7l-5 4v-4H5a2 2 0 0 1-2-2V7a2 2 0 0 1 2-2z" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/></svg></span>
+            <div><b>Your assistant</b><span>The same Project, from then on. Tell it what happened, or ask what to do today. It updates your sheet, then your page.</span></div></li>
+        </ul>
+      </aside>
+    </div>
+  </section>
+
+  <section class="sec alt center" id="steps">
+    <div class="wrap">
+      <h2>Six steps, about twenty minutes.</h2>
+      <p class="lead">You only do the first two. Your AI guides you through the rest, one thing at a time.</p>
+      <ol class="steps">
+        <li><h3>Start</h3><p>Copy the skill. In Claude or ChatGPT, create a <b>Project</b> called life-crm and paste the skill as its instructions{{TEMPLATE_START}}. The clicks are <a href="#drive">below</a>.</p></li>
+        <li><h3>Talk</h3><p>Talk for 2–3 minutes about what matters to you now. Dictation makes it easy: <a href="#talk">see how</a>.</p></li>
+        <li><h3>Answer a few questions</h3><p>It asks about what’s still missing, one question at a time, with options to pick from. Usually 3 to 6 questions.</p></li>
+        <li><h3>Connect Google Drive</h3><p>Not connected yet? It walks you through it, step by step. Already connected? It checks which account to use.</p></li>
+        <li><h3>Save</h3><p>It creates your life-crm sheet in your own Google Drive.</p></li>
+        <li><h3>See your page</h3><p>It builds your page in the chat: timeline first, matrix second, and a line at the top in the tone you chose. In ChatGPT, click <b>Preview</b> to see it.</p></li>
+      </ol>
+      <p class="after"><b>Every day after:</b> in the same Project, say what happened (“I booked the painter”) or ask “what should I do today?”. It updates your sheet first, then your page. The sheet in your Drive is the real data; the page is a view of it.</p>
+    </div>
+  </section>
+
+  <section class="sec center" id="talk">
+    <div class="wrap">
+      <h2>Talk, don’t type.</h2>
+      <p class="lead">Speaking is faster, and you’ll say more. Two or three minutes is plenty. Messy is fine.</p>
+      <div class="two">
+        <div class="card">
+          <h3>What to talk about</h3>
+          <ul class="points">
+            <li><b>What matters to you right now</b>, and why.</li>
+            <li><b>Which areas</b> you want help with: work, studies, money, health, home… You don’t need all of them.</li>
+            <li><b>For each area:</b> the goal, what’s done, what’s in progress, what’s stuck, who’s involved, where the documents are, and any dates.</li>
+            <li><b>How should I show up for you?</b> A kick in the butt, a caring approach, a motivational line, or nothing.</li>
+          </ul>
+        </div>
+        <div class="card">
+          <h3>Dictate it</h3>
+          <p><b>Wispr Flow</b> turns your voice into clean text in any app, on Mac and Windows.</p>
+          <div class="cta"><a class="btn" href="https://wisprflow.ai/r?JERRY1807" rel="noopener">Get Wispr Flow</a></div>
+          <p class="ref"><b>This is Jerry’s referral link.</b> With it, your free trial is <b>30 days instead of 14</b>. Students get <b>90 days</b>.</p>
+          <p>Or use your laptop’s own dictation:</p>
+          <ul class="keys">
+            <li><b>Mac</b> <span>Turn on Dictation in System Settings › Keyboard. Then press <kbd>fn</kbd> twice, or the 🎤 key.</span></li>
+            <li><b>Windows</b> <span>Press <kbd>⊞ Win</kbd> + <kbd>H</kbd>.</span></li>
+          </ul>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section class="sec alt center" id="drive">
+    <div class="wrap">
+      <h2>Set up Claude or ChatGPT.</h2>
+      <p class="lead">Make the Project, then connect Google Drive so your AI can save your sheet there. The skill also guides you in the chat, when it needs it.</p>
+      <div class="tabs">
+        <div class="center-row"><div class="tablist" role="tablist" aria-label="Your AI">
+          <button type="button" role="tab" id="tab-claude" aria-controls="panel-claude" aria-selected="true">Claude</button>
+          <button type="button" role="tab" id="tab-chatgpt" aria-controls="panel-chatgpt" aria-selected="false" tabindex="-1">ChatGPT</button>
+        </div></div>
+        <div class="panel" role="tabpanel" id="panel-claude" aria-labelledby="tab-claude">
+          <h3>Make the Project</h3>
+          <ol>
+            <li>In the left sidebar of claude.ai, click <b>Projects</b>.</li>
+            <li>Click <b>+ New Project</b>, name it <b>life-crm</b>, and create it.</li>
+            <li>Click <b>Set project instructions</b>, paste the skill, and click <b>Save instructions</b>.</li>
+            {{TEMPLATE_CLAUDE}}
+          </ol>
+          <h3>Turn on pages (once)</h3>
+          <p>Go to <b>Settings › Capabilities</b> and turn on <b>Code execution and file creation</b>.</p>
+          <h3>Connect Google Drive</h3>
+          <ol>
+            <li>Go to <b>Customize › Connectors</b>.</li>
+            <li>Find <b>Google Drive</b> and click <b>Connect</b>.</li>
+            <li>Sign in to your Google account and allow access. The button now says <b>Disconnect</b>.</li>
+          </ol>
+          <h3>Turn on Drive and Sheets in your chat</h3>
+          <p>In the chat, click <b>+</b> (bottom left of the message box) › <b>Connectors</b>, and switch on <b>Google Drive</b> and <b>Google Sheets</b>. Claude needs both to make your sheet. If Sheets isn’t connected yet, Claude asks you to connect it when it needs it.</p>
+          <p class="fine">Editing Google Sheets is a beta in Claude, on the website and the desktop app.</p>
+          <h3>Use a different Google account</h3>
+          <ol>
+            <li>Go to <b>Customize › Connectors</b> and click <b>Google Drive</b> under “Your connectors”.</li>
+            <li>Click <b>Disconnect</b>, then <b>Connect</b>, and sign in with the other account.</li>
+            <li>Do the same for <b>Google Sheets</b> if it shows as connected.</li>
+          </ol>
+        </div>
+        <div class="panel" role="tabpanel" id="panel-chatgpt" aria-labelledby="tab-chatgpt" hidden>
+          <h3>Make the Project</h3>
+          <ol>
+            <li>In the sidebar of chatgpt.com, click <b>New project</b> and name it <b>life-crm</b>. Keep memory on <b>Default</b>.</li>
+            <li>In the project, click <b>•••</b> › <b>Project settings</b>, paste the skill into the instructions, and save.</li>
+            {{TEMPLATE_CHATGPT}}
+          </ol>
+          <h3>Connect Google Drive (paid plans)</h3>
+          <ol>
+            <li>Click your name › <b>Settings</b> › <b>Plugins</b> (older apps say <b>Apps</b>).</li>
+            <li>Click <b>Google Drive</b>, then <b>Install plugin</b> if you see it, then <b>Connect</b>.</li>
+            <li>Sign in to your Google account. On Google’s screen click <b>Select all</b>, then continue.</li>
+          </ol>
+          <h3>Use Drive in your chat</h3>
+          <p>Type <b>@Google Drive</b> in your message, or click <b>+</b> and pick <b>Google Drive</b>. When ChatGPT asks before saving, allow it.</p>
+          <h3>See your page</h3>
+          <p>When ChatGPT shows your page’s code, click <b>Preview</b>.</p>
+          <h3>Use a different Google account</h3>
+          <ol>
+            <li>Go to <b>Settings</b> › <b>Plugins</b> › <b>Google Drive</b>.</li>
+            <li>If you see <b>Connected accounts</b>, click <b>Connect another account</b>. Otherwise click <b>•••</b> next to the account › <b>Disconnect</b>, then <b>Connect</b> again and pick the other account.</li>
+          </ol>
+          <h3>On ChatGPT Free</h3>
+          <p>You get a reduced version; the full experience needs a paid plan. Skip “Connect Google Drive”. At the end:</p>
+          <ol>
+            <li>Copy the data ChatGPT gives you and paste it into the <a href="/viewer/">viewer</a>.</li>
+            <li>In the viewer, download your sheet (an .xlsx file).</li>
+            <li>Upload it to your Google Drive, open it with <b>Google Sheets</b>, then click <b>File › Save as Google Sheets</b>. (Or, before uploading, turn on <b>Convert uploads</b> in Google Drive’s <b>Settings</b>.)</li>
+          </ol>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section class="sec" id="free">
+    <div class="wrap">
+      <div class="note">
+        <span class="ico"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="9" fill="none" stroke="currentColor" stroke-width="1.8"/><path d="M12 11v6" stroke="currentColor" stroke-width="2" stroke-linecap="round"/><circle cx="12" cy="7.5" r="1.2" fill="currentColor"/></svg></span>
+        <div>
+          <h2>On a free plan? You can still do it.</h2>
+          <p><b>Claude Free</b> gets the same full path as the paid plans. Usage limits may run out during setup; if they do, the skill gives you your data: paste it into the <a href="/viewer/">viewer</a> to see your page. (Free plans can have up to 5 Projects. Whether Claude Free can create the Google Sheet is still being checked.)</p>
+          <p><b>ChatGPT Free</b> gets a reduced version; the full experience needs a paid plan. It can’t connect to Google Drive, so you get your data instead of a saved sheet. Paste it into the <a href="/viewer/">viewer</a> to see your timeline and matrix and download your sheet. Then upload it to your Google Drive, open it with Google Sheets, and click <b>File › Save as Google Sheets</b>.</p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section class="sec alt center" id="examples">
+    <div class="wrap">
+      <h2>See how others did it.</h2>
+      <p class="lead">Three made-up people, three short conversations: what they said, what the AI asked, and what they got.</p>
+      <div class="tiles">{{EXAMPLES}}</div>
+      <div class="viewer" id="viewer">
+        <div>
+          <h3>The viewer</h3>
+          <p>For when your AI can’t build the page: paste the data it gives you and see your timeline and matrix. It stays on your laptop.</p>
+        </div>
+        <div class="links"><a class="btn" href="/viewer/">Open the viewer</a>{{TEMPLATE_LINK}}</div>
+      </div>
+      <p class="fict">Everyone in the examples is fictional.</p>
+    </div>
+  </section>
+
+  <section class="sec" id="share">
+    <div class="wrap">
+      <div class="qr">
+        <img src="/qr.svg" width="200" height="200" alt="QR code that opens {{SITE_URL}}">
+        <div>
+          <h2>Open this page on another device.</h2>
+          <p class="url">life-crm-lite.jerryfane.com</p>
+          <div class="links"><a class="more" href="/qr.png" download>Download the QR code</a></div>
+        </div>
+      </div>
+    </div>
+  </section>
+</main>
+
+<footer class="foot">
+  <div class="wrap">
+    <nav aria-label="Footer">
+      <a href="/skill/">The skill</a>
+      <a href="/viewer/">Viewer</a>
+      <a href="https://life-crm.jerryfane.com/">The full life-crm</a>
+      <a href="https://github.com/jerryfane/life-crm-lite">GitHub</a>
+    </nav>
+    <p>life-crm lite is the quick version of <a href="https://life-crm.jerryfane.com/">life-crm</a>, open source under the AGPL-3.0 license.</p>
+    <p>The Wispr Flow link is Jerry’s referral link. Everyone in the examples is fictional.</p>
+  </div>
+</footer>
+
+<script src="/room.js"></script>
+</body>
+</html>
