@@ -5,11 +5,14 @@
     python3 dashboard/build.py --data my.json --out x.html
     python3 dashboard/build.py --check                  # exits 1 if dist/dashboard.html is out of date
 
-Sources: dashboard/src/style.css + lite.css (the look), bridge.js (the artifact runtime calls) + source.js (LiteSource: Drive, saved copy, embedded block;
+Sources: dashboard/src/style.css + lite.css (the look), bridge.js (the claude.ai artifact runtime, `claude.use`) +
+source.js (LiteSource: the viewer's sheet through their Google Sheets connector, saved copy, embedded block;
 optional, the page falls back to the embedded block without it) and app.js (the dashboard). The data block
 (docs/data-contract.md) is embedded in <script id="data">; at run time LiteSource.load() replaces it with the
-live sheet. No external requests, no localStorage. No Content-Security-Policy: an artifact reaches Drive and
-Claude through its host, and a policy written here could block that, so the page doesn't set one.
+live sheet. No external requests. bridge.js keeps per-viewer data in the artifact's db, and uses localStorage
+(guarded) only when db is missing. Publish with the capabilities in dashboard/CAPABILITIES.md. No
+Content-Security-Policy: an artifact reaches Google Sheets and Claude through its host, and a policy written here
+could block that, so the page doesn't set one.
 """
 from __future__ import annotations
 

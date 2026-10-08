@@ -3,12 +3,10 @@
 in it: real date cells, numbers, yes/no cells, extra columns and Settings keys, a Profile name, an empty row, a
 renamed People tab and a list with extra fields.
 
-    python3 dashboard/test/tricky_sheet.py out.xlsx out-sheets.json
+    python3 dashboard/test/tricky_sheet.py out.xlsx
 
-Writes the .xlsx (what Drive's export gives) and the same sheet as the Google Sheets get_spreadsheet answer
-(includeGridData), encoded here independently of src/source.js.
+sheets_answer.py turns it into what the Google Sheets connector would answer.
 """
-import json
 import sys
 from datetime import date, datetime
 
@@ -69,25 +67,7 @@ TABS = {
 }
 
 
-def serial(value):
-    d = value if isinstance(value, datetime) else datetime(value.year, value.month, value.day)
-    return (d - datetime(1899, 12, 30)).total_seconds() / 86400
-
-
-def cell(v):
-    if v is None:
-        return {}
-    if isinstance(v, bool):
-        return {"effectiveValue": {"boolValue": v}, "formattedValue": "TRUE" if v else "FALSE"}
-    if isinstance(v, (date, datetime)):
-        return {"effectiveValue": {"numberValue": serial(v)}, "formattedValue": v.strftime("%m/%d/%Y"),
-                "effectiveFormat": {"numberFormat": {"type": "DATE"}}}
-    if isinstance(v, (int, float)):
-        return {"effectiveValue": {"numberValue": v}, "formattedValue": str(v)}
-    return {"effectiveValue": {"stringValue": v}, "formattedValue": v} if v != "" else {}
-
-
-def main(xlsx, sheets_json):
+def main(xlsx):
     wb = Workbook()
     wb.remove(wb.active)
     for title, rows in TABS.items():
@@ -95,12 +75,7 @@ def main(xlsx, sheets_json):
         for row in rows:
             ws.append(row)
     wb.save(xlsx)
-    answer = {"sheets": [{"properties": {"title": t},
-                          "data": [{"rowData": [{"values": [cell(v) for v in row]} for row in rows]}]}
-                         for t, rows in TABS.items()]}
-    with open(sheets_json, "w") as f:
-        json.dump(answer, f)
 
 
 if __name__ == "__main__":
-    main(*sys.argv[1:3])
+    main(sys.argv[1])
