@@ -7,12 +7,12 @@ The page and the viewer use the **data block** ([data-contract.md](data-contract
 ## Rules for every tab
 
 - Row 1 holds the column headers, exactly as below. Tab names and headers are case-insensitive (life-crm reads `Apply by` as `apply_by`).
-- One row per item, no empty rows in between, no merged cells, no formulas.
-- Write every value as plain text. Dates are `YYYY-MM-DD`, or `YYYY-MM` for a month only. Never `05/06/2027`: life-crm refuses slash dates.
+- One row per item, no empty rows in between, no merged cells, no formulas. A value that starts with `=` (header or cell) is written as text, never as a formula.
+- Write every value as plain text. Dates are real calendar dates, `YYYY-MM-DD`, or `YYYY-MM` for a month only (`2026-02-30` and `2026-13` are refused). Never `05/06/2027`: life-crm refuses slash dates.
 - An empty cell means "nothing" (the data block's `null` or `""`).
 - `show` is `yes` on every row the lite skill writes. In the full kit, `no` hides a row.
 - Columns the lite skill doesn't use (`group`, `track`, `progress`, `phase`, `pin`, `icon`, …) stay in the header row and are left empty. The full kit uses them; the converter keeps whatever is in them.
-- A column or Settings key that isn't listed here is kept: the converter carries it over to the data block as an extra field and back (the contract's "unknown fields are kept and ignored").
+- A column or Settings key that isn't listed here is kept: the converter carries it over to the data block as an extra field and back (the contract's "unknown fields are kept and ignored"). Extra fields of areas, steps, lists and people become extra columns on their tab; extra fields of the data block itself and of `sheet` go in Settings (below); extra fields of list rows become extra columns on the list's tab (see "List tabs").
 
 ## Tabs, in this order
 
@@ -70,7 +70,15 @@ Two columns of key and value, as in life-crm, plus a `meaning` column that expla
 | `sheet_url` | `sheet.url` | yes: "Open the spreadsheet" links |
 | `account` | `sheet.account` | no |
 
-The full kit's own keys (`window_start`, `window_months`) can be added below; the converter keeps them.
+Extra fields of the data block are kept below these rows, with an empty `meaning`:
+
+| Field in the data block | key | value |
+|---|---|---|
+| top-level, plain text (`"coach": "later"`) | `coach` | `later` |
+| top-level, anything else, or a key that clashes with a key above or starts with `json:` (`"streak": 3`) | `json:streak` | `3` (JSON text) |
+| `sheet`, any field besides `url` and `account` (`"folder": "https://…"`) | `json:sheet.folder` | `"https://…"` (JSON text) |
+
+A key starting with `json:` is read back as JSON (and as plain text if it isn't valid JSON). Plain text stays plain so the full kit's own keys (`window_start`, `window_months`) keep working; the converter keeps them.
 
 ### Collections: one row per list, then one for People
 
@@ -106,6 +114,10 @@ The last row is always the People page:
 ### List tabs: one per list
 
 Named after the list (`Subscriptions`, `Programs`…), headers = `lists[].columns` in order, one row per item. If a list name clashes with a tab above, the tab gets ` list` added (`People list`).
+
+Column names must be unique, not empty, and contain no `,` or `|` (life-crm splits `fields` on them). A list needs at least one column.
+
+A list row may have fields that aren't in `columns`: each becomes an extra column after the list's own columns, filled only on the rows that have it. On reading, the list's columns are the ones named in its Collections row (`title_field` + `fields`); any other header on the tab is an extra field, kept on the rows where the cell isn't empty. (A sheet whose Collections row has neither `title_field` nor `fields` reads every header as a column.)
 
 ## Example (Elena, from `examples/elena/`)
 
@@ -166,10 +178,11 @@ python3 tools/convert.py to-xlsx examples/maya/data.json maya.xlsx   # data bloc
 python3 tools/convert.py to-json maya.xlsx maya.json                 # sheet -> data block (stdout without maya.json)
 python3 tools/convert.py check                                       # every examples/*/data.json: valid, and data.json -> xlsx -> data.json identical
 python3 tools/convert.py blank templates/blank.xlsx                  # the blank template
+python3 tools/test_convert.py                                        # tests: real dates, extra fields kept, no formulas
 ```
 
-`to-json` also reads a sheet made by the full kit: it takes `name` from Profile when Settings has none, reads statuses as they are, and keeps every extra column and setting as extra fields.
+`to-json` also reads a sheet made by the full kit: it takes `name` from Profile when Settings has none, reads statuses as they are, and keeps every extra column and setting as extra fields (a list tab's `show` column, which isn't in `fields`, becomes an extra field of each row).
 
 ## In the full kit
 
-`python3 apps/build.py crm.xlsx --out build` in life-crm builds the dashboard from a lite sheet: the timelines, steps, the list pages and the People page all load, and the extra columns are ignored. One difference: the full kit knows only the statuses `todo`, `doing`, `done` and `to book`, so it shows `waiting` and `stuck` steps as `todo` and prints a warning for each. Nothing is lost: the sheet keeps the status as written.
+`python3 apps/build.py crm.xlsx --out build` in life-crm builds the dashboard from a lite sheet: the timelines, steps, the list pages and the People page all load, and the extra columns are ignored. Since life-crm 112329f ([jerryfane/life-crm#9](https://github.com/jerryfane/life-crm/pull/9)) the full kit also knows the statuses `waiting` and `stuck`, so a lite sheet loads without warnings. Older copies of the full kit show those two as `todo` with a warning for each; the sheet still keeps the status as written.
