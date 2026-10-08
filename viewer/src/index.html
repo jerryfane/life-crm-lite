@@ -1,0 +1,117 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>life-crm lite viewer</title>
+<link rel="icon" href="data:,">
+<!-- Built by page/build.py from viewer/src/ and page/src/. Edit those, then run: python3 page/build.py -->
+<style>
+@CSS
+.vw h1 { margin: 0 0 6px; font-size: 24px; font-weight: 750; letter-spacing: -.025em; }
+.vw p { margin: 0 0 12px; color: #374151; }
+.vw-note { font-size: 13.5px; color: #166534 !important; background: #f0fdf4; border: 1px solid #bbf7d0; border-radius: 10px; padding: 8px 12px; }
+.vw textarea { width: 100%; min-height: 180px; border: 1px solid var(--line); border-radius: 12px; padding: 12px; font: 13px/1.45 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; color: var(--ink); background: #fafafa; resize: vertical; }
+.vw textarea:focus { outline: 2px solid #1f5f5b; outline-offset: 1px; background: #fff; }
+.tools { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; margin-top: 12px; }
+.btn { display: inline-flex; align-items: center; gap: 6px; height: 38px; padding: 0 14px; border-radius: 9px; font: 650 14px var(--sans); border: 1px solid var(--line); background: #fff; color: var(--ink); white-space: nowrap; cursor: pointer; }
+.btn:hover { border-color: #c7cbd1; }
+.btn.dark { background: var(--ink); color: #fff; border-color: var(--ink); } .btn.dark:hover { background: #1f2937; }
+.btn.quiet { color: #991b1b; }
+.vw-bar { display: flex; justify-content: space-between; align-items: center; gap: 10px 16px; flex-wrap: wrap; padding: 14px 20px; }
+.vw-bar .tools { margin: 0; }
+.vw-bar span { font-size: 13.5px; color: #166534; }
+.vw .lc-err { margin: 12px 0 0; max-width: none; }
+.vw-ok { margin: 12px 0 0 !important; font-size: 13.5px; color: #374151; }
+#vtop { padding-bottom: 0; }
+[hidden] { display: none !important; }
+</style>
+</head>
+<body>
+<div class="lc" id="vtop">
+  <div class="lc-panel vw" id="vpaste">
+    <h1>See your life CRM</h1>
+    <p>Paste the data block your AI gave you (it starts with <b>{</b> and ends with <b>}</b>), then press <b>Show my page</b>. You can also upload a .json file.</p>
+    <p class="vw-note">It stays on this laptop: your data is saved in this browser only and never sent anywhere.</p>
+    <label for="vin" style="position:absolute;left:-9999px">Your data block</label>
+    <textarea id="vin" spellcheck="false" placeholder='{ "lite": 1, "title": "My plan", "areas": [ … ], "steps": [ … ] }'></textarea>
+    <div class="tools">
+      <button class="btn dark" id="vshow" type="button">Show my page</button>
+      <label class="btn" for="vfile">Upload a .json file</label>
+      <input id="vfile" type="file" accept=".json,.txt,application/json,text/plain" hidden>
+      <button class="btn" id="vcancel" type="button" hidden>Cancel</button>
+    </div>
+    <div class="lc-err" id="verr" role="alert" hidden></div>
+  </div>
+  <div class="lc-panel vw-bar" id="vbar" hidden>
+    <span>Saved on this laptop only (in this browser).</span>
+    <div class="tools">
+      <button class="btn dark" id="vdown" type="button">Download my page</button>
+      <button class="btn" id="vexp" type="button">Export for life-crm</button>
+      <button class="btn" id="vnew" type="button">Paste new data</button>
+      <button class="btn quiet" id="vclear" type="button">Clear</button>
+    </div>
+    <p class="vw-ok" id="vmsg" hidden></p>
+  </div>
+</div>
+<div id="lite"></div>
+<script>
+@JS
+@EXPORT
+(function () {
+  "use strict";
+  var TEMPLATE = @TEMPLATE;
+  var KEY = "lifecrm-lite.data", data = null, $ = function (id) { return document.getElementById(id); }, out = $("lite");
+  var store = {
+    get: function () { try { return localStorage.getItem(KEY); } catch (e) { return null; } },
+    set: function (v) { try { v == null ? localStorage.removeItem(KEY) : localStorage.setItem(KEY, v); return true; } catch (e) { return false; } }
+  };
+  function mode(showing) { $("vpaste").hidden = showing; $("vbar").hidden = !showing; $("verr").hidden = true; $("vmsg").hidden = true; $("vcancel").hidden = !data; }
+  function show(d, save) {
+    data = d;
+    if (save && !store.set(JSON.stringify(d))) say("This browser won't let me save, so your page will be gone when you close it. Use Download my page to keep it.");
+    mode(true);
+    LiteCRM.mount(out, d);
+  }
+  function load(text) {
+    var r = LiteCRM.parse(text);
+    if (r.error) { $("verr").textContent = r.error; $("verr").hidden = false; return; }
+    show(r.data, true);
+    window.scrollTo(0, 0);
+  }
+  function say(t) { $("vmsg").textContent = t; $("vmsg").hidden = false; }
+  function slug() { return (String(data.title || data.owner || "my-life-crm").toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "") || "my-life-crm"); }
+  function save(blob, name) {
+    var a = document.createElement("a");
+    a.href = URL.createObjectURL(blob); a.download = name;
+    document.body.appendChild(a); a.click(); a.remove();
+    setTimeout(function () { URL.revokeObjectURL(a.href); }, 1000);
+  }
+  $("vshow").onclick = function () { load($("vin").value); };
+  $("vfile").onchange = function () {
+    var f = this.files[0]; if (!f) return;
+    f.text().then(function (t) { $("vin").value = t; load(t); });
+    this.value = "";
+  };
+  $("vnew").onclick = function () { mode(false); $("vin").value = JSON.stringify(data, null, 2); $("vin").focus(); };
+  $("vcancel").onclick = function () { mode(true); };
+  $("vclear").onclick = function () {
+    if (!confirm("Remove your data from this browser? Download your page first if you want to keep it.")) return;
+    store.set(null); data = null; LiteCRM.fail(out, ""); out.innerHTML = ""; $("vin").value = ""; mode(false);
+  };
+  $("vdown").onclick = function () {
+    var json = JSON.stringify(data, null, 2).replace(/</g, "\\u003c");
+    var html = TEMPLATE.replace(/(<script type="application\/json" id="lite-data">)[\s\S]*?(<\/script>)/, function (m, a, b) { return a + "\n" + json + "\n" + b; });
+    save(new Blob([html], { type: "text/html" }), slug() + ".html");
+    say("Downloaded " + slug() + ".html. Open it any time, even offline.");
+  };
+  $("vexp").onclick = function () {
+    save(LiteExport.xlsx(data), slug() + ".xlsx");
+    say("Downloaded " + slug() + ".xlsx, a life-crm sheet. To use it: upload it to your Google Drive, then open it with Google Sheets.");
+  };
+  var saved = store.get(), r = saved && LiteCRM.parse(saved);
+  if (r && r.data) show(r.data, false); else mode(false);
+})();
+</script>
+</body>
+</html>

@@ -1,0 +1,26 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>My life CRM</title>
+<link rel="icon" href="data:,">
+<!-- life-crm lite page: https://github.com/jerryfane/life-crm-lite (AGPL-3.0).
+     To update this page, replace ONLY the JSON inside the lite-data script just below. Leave everything else exactly as it is. -->
+<script type="application/json" id="lite-data">
+@DATA
+</script>
+<style>
+@CSS</style>
+</head>
+<body>
+<div id="lite"></div>
+<script>
+@JS
+(function () {
+  var el = document.getElementById("lite"), r = LiteCRM.parse(document.getElementById("lite-data").textContent);
+  if (r.error) LiteCRM.fail(el, "The data block in this page has a problem. " + r.error); else LiteCRM.mount(el, r.data);
+})();
+</script>
+</body>
+</html>
