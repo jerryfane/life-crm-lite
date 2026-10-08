@@ -4,6 +4,7 @@
     python3 tools/simulate.py                       # all cases below
     python3 tools/simulate.py maya-claude-pro       # one case
     python3 tools/simulate.py --out DIR             # where results go
+    python3 tools/simulate.py --summary-only        # rebuild summary.md from saved results, no API
 
 One model plays the assistant with SKILL.md as its instructions. A second model plays the
 person: it answers from examples/<name>/transcript.md (the dictation, the assumed follow-up
@@ -13,7 +14,9 @@ assistant is told that Drive is connected and writes the data block it would sav
 
 Checks per case: number of follow-up questions (3-6), one question per message, options
 present, the data block valid (`tools/convert.py check`), matrix placement against the
-example's data.json, and, for ChatGPT Free, the reduced path. Tokens are summed per case.
+example's data.json, for paid plans that the page follows the sheet (a run without it is
+invalid), and, for ChatGPT Free, the reduced path. Tokens are summed per case. Each case's
+result.json and summary.md are written as soon as the case finishes.
 
 The API goes through the local keyring relay (no key in this file). Python 3.10+, openpyxl.
 """
@@ -36,6 +39,7 @@ USER_MODEL = "gpt-5.3-codex"
 TODAY = "2026-10-11"
 MAX_TURNS = 16
 DEFAULT_OUT = Path("/root/fleet-tools/state/life-crm-lite/skill")
+PAGE_RE = re.compile(r"\[PAGE\b|id=\"lite-data\"|<!doctype html", re.I)
 
 CASES = {
     "maya-claude-pro": ("maya", "Claude Pro"),
@@ -242,7 +246,7 @@ def run_case(case: str, out: Path) -> dict:
                                     drive_note="" if free else "; Google Drive is already connected")
     usage: dict = {}
     convo = [{"role": "user", "content": "Hi! Let's set up my life CRM."}]
-    log, data, data_at = [], None, None
+    log, data, data_at, page_at = [], None, None, None
     for _ in range(MAX_TURNS):
         a = call(ASSISTANT_MODEL, instructions, convo, usage)
         convo.append({"role": "assistant", "content": a})
@@ -258,7 +262,10 @@ def run_case(case: str, out: Path) -> dict:
         if blocks:
             data = blocks[-1]
             data_at = data_at or len(log)
-        if not free and (lab.get("kind") == "done" or (data is not None and "[SHEET SAVED" in a)):
+        if not free and PAGE_RE.search(a):
+            page_at = page_at or len(log)
+        # Paid plans: go on past the sheet until the page turn (or give up 3 turns after the data block).
+        if not free and (page_at or (data_at and len(log) >= data_at + 3)):
             break
         if free and data_at and ("save as google sheets" in a.lower() or len(log) >= data_at + 4):
             break
@@ -287,17 +294,22 @@ def run_case(case: str, out: Path) -> dict:
     else:
         res["drive_step"] = "drive" in kinds
         res["account_confirmed"] = c["account"] in full
+        res["page_shown"] = page_at is not None
     case_dir = out / case
     case_dir.mkdir(parents=True, exist_ok=True)
+    res["skill_words"] = len(skill.split())
+    res["problems"] = []
     if data is None or "_invalid_json" in data:
         res["data_block"] = "missing" if data is None else "invalid JSON"
-        res["valid"] = False
+        res["data_valid"] = False
     else:
-        problems = validate(data, case_dir / "data.json")
+        res["problems"] = validate(data, case_dir / "data.json")
         res["data_block"] = "present"
-        res["valid"] = not problems
-        res["problems"] = problems
+        res["data_valid"] = not res["problems"]
         res["compare"] = compare(data, c["expected"])
+    if not free and not res["page_shown"]:
+        res["problems"].append("no page or template output after the sheet")
+    res["valid"] = res["data_valid"] and (free or res["page_shown"])
     (case_dir / "result.json").write_text(json.dumps(res, ensure_ascii=False, indent=2) + "\n")
     md = [f"# {case}\n"]
     md.append(f"**User:** {convo[0]['content']}\n")
@@ -309,23 +321,33 @@ def run_case(case: str, out: Path) -> dict:
     return res
 
 
+def first_line(text: str) -> str:
+    """The line holding the question, else the first line; empty messages are named as such."""
+    lines = [line.strip() for line in text.splitlines() if line.strip()]
+    if not lines:
+        return "(empty message)"
+    return next((line for line in lines if "?" in line), lines[0])[:160]
+
+
 def summary(results: list[dict], words: int) -> str:
     total_in = sum(b["input"] for r in results for b in r["usage"].values())
     total_out = sum(b["output"] for r in results for b in r["usage"].values())
-    lines = [f"SKILL.md: {words} words. Assistant model {ASSISTANT_MODEL}, user model {USER_MODEL}.",
-             f"Tokens, all cases: {total_in:,} in, {total_out:,} out.", ""]
+    counted = sorted({r.get("skill_words", words) for r in results}) or [words]
+    lines = [f"SKILL.md: {', '.join(map(str, counted))} words. Assistant model {ASSISTANT_MODEL}, "
+             f"user model {USER_MODEL}.", f"Tokens, all cases: {total_in:,} in, {total_out:,} out.", ""]
     for r in results:
         tok = sum(b["input"] + b["output"] for b in r["usage"].values())
         lines.append(f"## {r['case']}")
         lines.append(f"- follow-up questions: {r['followup_questions']} (3-6: {r['followups_3_to_6']}); "
                      f"one per message: {r['one_question_each']}; options: {r['options_each']}; "
                      f"matrix confirmed in one question: {r['matrix_confirmed']}")
-        lines.append(f"- data block: {r['data_block']}, valid: {r['valid']}" +
-                     (f" ({'; '.join(r['problems'])})" if r.get("problems") else ""))
+        lines.append(f"- data block: {r['data_block']}, data valid: {r.get('data_valid', r['valid'])}; "
+                     f"run valid: {r['valid']}" + (f" ({'; '.join(r['problems'])})" if r.get("problems") else ""))
         if "free_path" in r:
             lines.append(f"- reduced path: {r['free_path']}")
         else:
-            lines.append(f"- Drive step: {r['drive_step']}, account named: {r['account_confirmed']}")
+            lines.append(f"- Drive step: {r['drive_step']}, account named: {r['account_confirmed']}, "
+                         f"page shown: {r.get('page_shown', 'not checked')}")
         if "compare" in r:
             cmp = r["compare"]
             lines.append(f"- got/expected: areas {cmp['areas']}, steps {cmp['steps']}, lists {cmp['lists']}, "
@@ -337,32 +359,48 @@ def summary(results: list[dict], words: int) -> str:
                 lines.append(f"  - not in the result: {', '.join(cmp['missing_steps'])}")
             if cmp["extra_steps"]:
                 lines.append(f"  - not in the example: {', '.join(cmp['extra_steps'])}")
-        lines.append(f"- questions asked:")
+        lines.append("- questions asked:")
         for q in r["followup_texts"]:
-            first = next((line for line in q.splitlines() if "?" in line), q.splitlines()[0])
-            lines.append(f"  - {first.strip()[:160]}")
+            lines.append(f"  - {first_line(q)}")
         lines.append(f"- turns {r['turns']}: {' > '.join(r['kinds'])}; tokens {tok:,}")
         lines.append("")
     return "\n".join(lines)
+
+
+def write_summary(out: Path, results: list[dict], words: int) -> str:
+    text = summary(results, words)
+    out.mkdir(parents=True, exist_ok=True)
+    (out / "summary.md").write_text(text)
+    return text
 
 
 def main() -> int:
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("cases", nargs="*", metavar="case", help=f"one of {', '.join(CASES)} (default: all)")
     ap.add_argument("--out", type=Path, default=DEFAULT_OUT)
+    ap.add_argument("--summary-only", action="store_true",
+                    help="rebuild summary.md from the saved <out>/<case>/result.json files, no API calls")
     args = ap.parse_args()
     unknown = [c for c in args.cases if c not in CASES]
     if unknown:
         ap.error(f"unknown case {', '.join(unknown)}")
-    args.cases = args.cases or list(CASES)
     words = len((ROOT / "skill" / "SKILL.md").read_text().split())
     results = []
-    for case in args.cases:
-        print(f"running {case}…", file=sys.stderr)
-        results.append(run_case(case, args.out))
-    text = summary(results, words)
-    args.out.mkdir(parents=True, exist_ok=True)
-    (args.out / "summary.md").write_text(text)
+    if args.summary_only:
+        for case in args.cases or list(CASES):
+            path = args.out / case / "result.json"
+            if path.exists():
+                results.append(json.loads(path.read_text()))
+            elif args.cases:
+                ap.error(f"no saved result for {case} ({path})")
+        if not results:
+            ap.error(f"no saved results in {args.out}")
+    else:
+        for case in args.cases or list(CASES):
+            print(f"running {case}…", file=sys.stderr)
+            results.append(run_case(case, args.out))  # writes <out>/<case>/result.json
+            write_summary(args.out, results, words)  # a later failure still leaves a summary
+    text = write_summary(args.out, results, words)
     print(text)
     return 0
 
