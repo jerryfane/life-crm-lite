@@ -1,8 +1,7 @@
 #!/usr/bin/env python3
 """Build the room page (life-crm-lite.jerryfane.com) into site/dist/.
 
-    python3 site/build.py          # -> site/dist/  (DASHBOARD_MODE and DASHBOARD_URL below)
-    python3 site/build.py --dashboard-mode copy
+    python3 site/build.py          # -> site/dist/
     site/deploy.sh                 # build, then deploy site/dist/ as one Cloudflare Worker
 
 Required:
@@ -10,8 +9,8 @@ Required:
 
 Optional inputs (the build works without each one and shows "coming soon"):
     skill/SKILL.md       the skill: copied by the big button, shown at /skill/, raw at /SKILL.md
-    dashboard/dist/dashboard.html   the dashboard: published at /dashboard/ (example data without Claude)
-                                    and offered at /dashboard/dashboard.html for the "copy" path
+    dashboard/dist/dashboard.html   the dashboard: a preview at /dashboard/ (example data without Claude), and
+                                    the download at /dashboard/dashboard.html that each person adds to their Project
     viewer/              the viewer: copied to /viewer/
     examples/<name>/     transcript.md (shown at /examples/<name>/), data.json, crm.xlsx;
                          <name> must match [a-z0-9-]+, other folders are skipped with a warning
@@ -42,13 +41,6 @@ ROOT = HERE.parent
 SRC = HERE / "src"
 SITE_URL = "https://life-crm-lite.jerryfane.com/"
 SRC_FILES = ("index.html", "shell.html", "style.css", "room.js")
-# ── dashboard: how it reaches participants (flip on Friday after Jerry's mini-test) ──
-# DASHBOARD_MODE: published | copy
-#   published: Jerry publishes ONE dashboard artifact; everyone opens DASHBOARD_URL.
-#   copy:      everyone adds dashboard.html to their Project and Claude makes the artifact from it.
-DASHBOARD_MODE = "published"
-DASHBOARD_URL = ""  # Jerry's published artifact link; empty shows "Link coming Saturday"
-DASHBOARD_MODES = ("published", "copy")
 EXAMPLE_NAME = re.compile(r"[a-z0-9-]+")  # used in URLs and file paths, so kept plain
 
 sys.path.insert(0, str(HERE / "vendor"))
@@ -242,42 +234,28 @@ def example_cards(examples: list[tuple[str, str, str, list[str]]]) -> str:
     return "".join(cards)
 
 
-def dashboard_step(mode: str, url: str, has_dashboard: bool, has_sheet_flow: bool = False) -> dict[str, str]:
-    """The room page's dashboard step for one DASHBOARD_MODE."""
-    if mode not in DASHBOARD_MODES:
-        sys.exit(f"DASHBOARD_MODE must be one of {', '.join(DASHBOARD_MODES)}, not {mode!r}")
-    if url and not url.startswith("https://"):
-        sys.exit(f"DASHBOARD_URL must start with https://, not {url!r}")
-    if (url or mode != "published") and not has_sheet_flow:
-        sys.exit("DASHBOARD_URL and copy mode need a dashboard/dist/dashboard.html with the sheet-link flow (setSheet); "
+def dashboard_step(has_dashboard: bool, has_sheet_flow: bool) -> dict[str, str]:
+    """The room page's dashboard step: add dashboard.html to the Project; Claude makes each person's own dashboard.
+    Left out entirely when there is no dashboard to download."""
+    if not has_dashboard:
+        return {"DASHBOARD_START": "", "DASHBOARD_FILE": "", "DASHBOARD_STEP": ""}
+    if not has_sheet_flow:
+        sys.exit("dashboard/dist/dashboard.html has no sheet-link flow (setSheet); "
                  "without it the room page would promise something the dashboard can't do.")
-    if mode == "published":
-        # ── DASHBOARD_MODE: published ──
-        # Until DASHBOARD_URL is set the dashboard isn't published, so the step promises nothing about it.
-        if not url:
-            step = ('<p class="dash-wip">The dashboard link, and how it connects to your sheet, '
-                    'will be here on Saturday. Until then, the <a href="/dashboard/">preview</a> shows Maya’s example.</p>'
-                    '<div class="cta"><span class="btn off" aria-disabled="true">Link coming Saturday</span></div>')
-            return {"DASHBOARD_START": "", "DASHBOARD_FILE": "", "DASHBOARD_STEP": step}
-        step = ('<ol class="dash-steps"><li>Sign in to <b>claude.ai</b> in this browser first. Then open the dashboard link.</li>'
-                '<li>The first time, it asks for your sheet’s link: paste it. It remembers it, just for you.</li>'
-                '<li>Next time, just open the link. Click <b>Refresh</b> after Claude updates your sheet.</li></ol>'
-                f'<div class="cta"><a class="btn" href="{attr(url)}" rel="noopener">Open the dashboard</a></div>')
-        return {"DASHBOARD_START": "", "DASHBOARD_FILE": "", "DASHBOARD_STEP": step}
-    # ── DASHBOARD_MODE: copy ──
-    download = ('<a class="btn" href="/dashboard/dashboard.html" download="dashboard.html">Download dashboard.html</a>'
-                if has_dashboard else '<span class="btn off" aria-disabled="true">dashboard.html coming soon</span>')
-    step = ('<ol class="dash-steps"><li>Add <b>dashboard.html</b> to your Project’s files (see <a href="#drive">Make the Project</a>).</li>'
-            '<li>At the end of the setup, Claude makes your dashboard from it, with your sheet’s link.</li>'
-            '<li>Open it from the Project any time. Click <b>Refresh</b> after Claude updates your sheet.</li></ol>'
-            f'<div class="cta">{download}</div>')
+    download = '<a class="btn" href="/dashboard/dashboard.html" download="dashboard.html">Download dashboard.html</a>'
+    step = ('<div class="setup"><div class="panel"><ol class="dash-steps">'
+            '<li>Add <b>dashboard.html</b> to your Project’s files (see <a href="#drive">Make the Project</a>).</li>'
+            '<li>At the end of the setup, Claude makes your own dashboard from it, connected to your sheet.</li>'
+            '<li>Open it from the Project any time. Click <b>Refresh</b> after Claude updates your sheet.</li>'
+            '<li>It’s yours: ask Claude to change it, like a chart, other colours or a new section.</li></ol>'
+            f'<div class="cta">{download}</div></div></div>')
     return {"DASHBOARD_START": ", then add the dashboard file to it",
             "DASHBOARD_FILE": ('<li>Download the dashboard file. In the Project, click <b>+</b> next to Files and upload it. '
                                f'Keep its name: <b>dashboard.html</b>.<p class="dl">{download}</p></li>'),
             "DASHBOARD_STEP": step}
 
 
-def build(out: Path, root: Path = ROOT, mode: str = DASHBOARD_MODE, url: str = DASHBOARD_URL) -> None:
+def build(out: Path, root: Path = ROOT) -> None:
     missing = [name for name in SRC_FILES if not (SRC / name).is_file()]
     if missing:
         sys.exit(f"site/src/ is required and is missing {', '.join(missing)}: the room page can't be built without it.")
@@ -307,10 +285,8 @@ def build(out: Path, root: Path = ROOT, mode: str = DASHBOARD_MODE, url: str = D
     # Dashboard and viewer: built in their own folders; copied as they are.
     dashboard = root / "dashboard" / "dist" / "dashboard.html"
     has_dashboard = dashboard.is_file()
-    # The configured steps (a published link, or copy mode) tell people the dashboard takes and keeps their
-    # sheet link. This check is only a tripwire against configuring them by mistake before that code exists;
-    # it can't prove the flow works. The real gate: set DASHBOARD_URL or copy mode only after the sheet-link PRs
-    # (#31, #33) are merged and Jerry's live test in claude.ai has read his sheet through the published dashboard.
+    # The dashboard step tells people their dashboard connects to their sheet. This check is only a tripwire
+    # against a dashboard without the sheet-link code; it can't prove the flow works.
     has_sheet_flow = has_dashboard and "setSheet" in dashboard.read_text()
     if has_dashboard:
         (out / "dashboard").mkdir()
@@ -362,14 +338,14 @@ def build(out: Path, root: Path = ROOT, mode: str = DASHBOARD_MODE, url: str = D
         # The parser drops one newline right after <textarea>, so keep the skill's first line intact.
         "SKILL_TEXT": "\n" + html.escape(skill),
         "EXAMPLES": example_cards(found),
-        **dashboard_step(mode, url, has_dashboard, has_sheet_flow),
+        **dashboard_step(has_dashboard, has_sheet_flow),
         "SITE_URL": attr(SITE_URL),
     }, "site/src/index.html")
     (out / "index.html").write_text(index)
     soon("Page not found", "There’s nothing at this address.", out / "404.html")
     (out / "robots.txt").write_text("User-agent: *\nAllow: /\n")
 
-    parts = {"skill": bool(skill), "dashboard": has_dashboard, "dashboard_mode": mode, "dashboard_url": url, "viewer": (root / "viewer" / "index.html").is_file(),
+    parts = {"skill": bool(skill), "dashboard": has_dashboard, "viewer": (root / "viewer" / "index.html").is_file(),
              "examples": [f[0] for f in found]}
     print(f"site: {out}  {json.dumps(parts)}")
 
@@ -377,10 +353,7 @@ def build(out: Path, root: Path = ROOT, mode: str = DASHBOARD_MODE, url: str = D
 def main() -> None:
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("--out", type=Path, default=HERE / "dist")
-    ap.add_argument("--dashboard-mode", choices=DASHBOARD_MODES, default=DASHBOARD_MODE)
-    ap.add_argument("--dashboard-url", default=DASHBOARD_URL)
-    a = ap.parse_args()
-    build(a.out, mode=a.dashboard_mode, url=a.dashboard_url)
+    build(ap.parse_args().out)
 
 
 if __name__ == "__main__":
