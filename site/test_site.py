@@ -104,7 +104,8 @@ class Build(unittest.TestCase):
         out, _ = self.run_build(mode="published", url="")
         index = (out / "index.html").read_text()
         self.assertIn("Link coming Saturday", index)
-        self.assertIn("Sign in to <b>claude.ai</b>", index)
+        # No promise about how the unpublished dashboard behaves.
+        self.assertNotIn("asks for your sheet", index)
         self.assertNotIn("Open the dashboard</a>", index)
         self.assertNotIn('download="dashboard.html"', index)
         self.assertEqual((out / "dashboard" / "index.html").read_text(), "<!doctype html><title>d</title>")
@@ -114,6 +115,8 @@ class Build(unittest.TestCase):
         index = (out / "index.html").read_text()
         self.assertIn('href="https://claude.ai/public/artifacts/x?a=1&amp;b=2"', index)
         self.assertNotIn("Link coming Saturday", index)
+        self.assertIn("asks for your sheet", index)
+        self.assertIn("Sign in to <b>claude.ai</b>", index)
 
     def test_bad_url_or_mode_refused(self):
         for kw in ({"url": "javascript:alert(1)"}, {"mode": "both"}):
