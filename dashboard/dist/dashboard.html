@@ -29,6 +29,7 @@ write: function (id, range, values) { return { spreadsheetId: id, range: range, 
 var SIGN_IN = "Sign in to claude.ai in this browser, then reload.";
 var CONNECT = "Connect Google Sheets to Claude (claude.ai, Customize > Connectors), then reload.";
 var OUTSIDE = "This works only when the page is open in claude.ai.";
+var NOT_READY = "Your sheet can't be read yet: the connector details are being set up.";
 function create(env) {
 var claude = env.claude, local = env.localStorage, mem = {}, uses = {};
 var present = !!(claude && typeof claude.use === "function");
@@ -47,9 +48,13 @@ async function runtime() {
 if (!present) return "none";
 return (await use("user")) && (await use("db")) ? "ok" : "signed-out";
 }
-async function sheets(op) {
+function ready(op) {
 var tool = CONFIG.SHEETS_TOOLS[op];
-if (!tool || tool === "?") throw new Error("this page doesn't know the Google Sheets tools yet");
+return !!tool && tool !== "?";
+}
+async function sheets(op) {
+if (!ready(op)) throw new Error(NOT_READY);
+var tool = CONFIG.SHEETS_TOOLS[op];
 var mcp = await use("mcp"), args = CONFIG.SHEETS_ARGS[op].apply(null, [].slice.call(arguments, 1));
 if (!mcp) throw new Error(!present ? OUTSIDE : (await runtime()) === "ok" ? CONNECT : SIGN_IN);
 var r = await mcp.callTool(CONFIG.SHEETS_SERVER, tool, args);
@@ -64,13 +69,15 @@ async function complete(system, prompt) {
 var r = await (await need("sample"))(system + "\n\n" + prompt);
 return typeof r === "string" ? r : String((r && r.text) || "");
 }
-var docs = null;
+var viewer = null;
+function uid() {
+if (!viewer) viewer = use("user").then(function (u) { return u ? u.id() : null; })
+.then(function (id) { return id ? String(id) : null; }, function () { return null; });
+return viewer;
+}
 async function users() {
-if (!docs) docs = (async function () {
-var u = await use("user"), db = await use("db");
-return u && db ? db.collection("data/users/" + (await u.id())) : null;
-})().catch(function () { return null; });
-return docs;
+var id = await uid(), db = id ? await use("db") : null;
+try { return db ? db.collection("data/users/" + id) : null; } catch (e) { return null; }
 }
 async function get(key) {
 try {
@@ -82,7 +89,8 @@ else if (d && d.data && typeof d.data === "object") d = d.data;
 return d && typeof d.value === "string" ? d.value : null;
 }
 } catch (e) { /* next store */ }
-try { if (local) return local.getItem(key); } catch (e) { /* next store */ }
+var id = await uid();
+try { if (local && id) return local.getItem("lite:" + id + ":" + key); } catch (e) { /* next store */ }
 return key in mem ? mem[key] : null;
 }
 async function set(key, value) {
@@ -90,13 +98,14 @@ try {
 var col = await users();
 if (col) { await col.doc(key).set({ value: value }); return true; }
 } catch (e) { /* next store */ }
-try { if (local) { local.setItem(key, value); return true; } } catch (e) { /* next store */ }
+var id = await uid();
+try { if (local && id) { local.setItem("lite:" + id + ":" + key, value); return true; } } catch (e) { /* next store */ }
 mem[key] = value;
 return true;
 }
-return { runtime: runtime, sheets: sheets, complete: complete, get: get, set: set };
+return { runtime: runtime, ready: ready, sheets: sheets, complete: complete, get: get, set: set };
 }
-var bridge = { create: create, CONFIG: CONFIG, SIGN_IN: SIGN_IN };
+var bridge = { create: create, CONFIG: CONFIG, SIGN_IN: SIGN_IN, NOT_READY: NOT_READY };
 if (w) Object.assign(bridge, create({ claude: w.claude, localStorage: (function () {
 try { return w.localStorage; } catch (e) { return null; }
 })() }));
@@ -265,8 +274,9 @@ return cells ? book : null;
 }
 function quoteTab(title) { return "'" + title.replace(/'/g, "''") + "'"; }
 function sheetIdOf(url) {
-var m = /\/spreadsheets\/d\/([\w-]{10,})/.exec(url || "") || /^([\w-]{20,})$/.exec(String(url || "").trim());
-return m && !/^EXAMPLE/.test(m[1]) ? m[1] : ""; // the examples' made-up links aren't sheets
+var s = String(url || "").trim();
+var m = /^https:\/\/docs\.google\.com\/spreadsheets\/d\/([A-Za-z0-9_-]{20,})(?:[/?#]|$)/.exec(s) || /^([A-Za-z0-9_-]{20,})$/.exec(s);
+return m ? m[1] : "";
 }
 function msg(e) { return String((e && e.message) || e); }
 function timeout(p, ms, what) {
@@ -313,6 +323,11 @@ return (await bridge.set(SHEET_KEY, url == null ? "" : String(url).trim())) ? { 
 } catch (e) { return { ok: false, error: msg(e) }; }
 }
 function signIn() { return (bridge && bridge.SIGN_IN) || "Sign in to claude.ai in this browser, then reload."; }
+function notReady() {
+var ops = [].slice.call(arguments);
+return bridge && typeof bridge.ready === "function" && !ops.every(bridge.ready) ? bridge.NOT_READY ||
+"Your sheet can't be read yet: the connector details are being set up." : "";
+}
 async function readBook(id) {
 var answer = await call("info", id), book = bookOf(answer);
 if (book) return book;
@@ -330,8 +345,8 @@ if (state === "none") return embeddedResult("");
 if (state !== "ok") return embeddedResult("no_runtime");
 var sheet = await getSheet();
 if (!sheet) return embeddedResult("no_sheet");
-var error;
-try {
+var error = notReady("info");
+if (!error) try {
 var book = await readBook(sheet.id);
 if (!tabNamed(book, "Steps") && !tabNamed(book, "Timelines")) throw new Error("that sheet isn't a life-crm sheet");
 var data = fromBook(book), at = now().toISOString();
@@ -347,6 +362,7 @@ async function markDone(stepId) {
 try {
 var sheet = await getSheet();
 if (!sheet) return { ok: false, error: "Connect your sheet first" };
+if (notReady("read", "write")) return { ok: false, error: notReady("read", "write") };
 var r = await call("read", sheet.id, "Steps");
 var g = grid({ rows: (r && r.values) || [] }), head = (g[0] || []).map(headerKey);
 var idCol = head.indexOf("id"), statusCol = head.indexOf("status");

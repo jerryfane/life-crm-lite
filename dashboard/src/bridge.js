@@ -22,6 +22,7 @@ var LiteBridge = (function (w) {
   var SIGN_IN = "Sign in to claude.ai in this browser, then reload.";
   var CONNECT = "Connect Google Sheets to Claude (claude.ai, Customize > Connectors), then reload.";
   var OUTSIDE = "This works only when the page is open in claude.ai.";
+  var NOT_READY = "Your sheet can't be read yet: the connector details are being set up.";
 
   function create(env) {
     var claude = env.claude, local = env.localStorage, mem = {}, uses = {};
@@ -47,10 +48,17 @@ var LiteBridge = (function (w) {
       return (await use("user")) && (await use("db")) ? "ok" : "signed-out";
     }
 
-    // op: "info" (id), "read" (id, range) or "write" (id, range, values); returns the tool's payload.
-    async function sheets(op) {
+    // True when CONFIG names the tool for op ("info", "read", "write"); "?" means not known yet.
+    function ready(op) {
       var tool = CONFIG.SHEETS_TOOLS[op];
-      if (!tool || tool === "?") throw new Error("this page doesn't know the Google Sheets tools yet");
+      return !!tool && tool !== "?";
+    }
+
+    // op: "info" (id), "read" (id, range) or "write" (id, range, values); returns the tool's payload.
+    // Never calls a tool that isn't known yet.
+    async function sheets(op) {
+      if (!ready(op)) throw new Error(NOT_READY);
+      var tool = CONFIG.SHEETS_TOOLS[op];
       var mcp = await use("mcp"), args = CONFIG.SHEETS_ARGS[op].apply(null, [].slice.call(arguments, 1));
       if (!mcp) throw new Error(!present ? OUTSIDE : (await runtime()) === "ok" ? CONNECT : SIGN_IN);
       var r = await mcp.callTool(CONFIG.SHEETS_SERVER, tool, args);
@@ -67,15 +75,18 @@ var LiteBridge = (function (w) {
       return typeof r === "string" ? r : String((r && r.text) || "");
     }
 
-    // Per-viewer storage: db collection data/users/<viewer id>; if that is missing or fails, localStorage;
-    // if that is blocked too, memory (this page load only). Never throw.
-    var docs = null;
+    // Per-viewer storage: db collection data/users/<viewer id>; if that is missing or fails, localStorage under
+    // keys scoped to the viewer (lite:<uid>:<key>), so two people using one browser never see each other's data;
+    // without a viewer id, memory only (this page load). Never throw.
+    var viewer = null;
+    function uid() {
+      if (!viewer) viewer = use("user").then(function (u) { return u ? u.id() : null; })
+        .then(function (id) { return id ? String(id) : null; }, function () { return null; });
+      return viewer;
+    }
     async function users() {
-      if (!docs) docs = (async function () {
-        var u = await use("user"), db = await use("db");
-        return u && db ? db.collection("data/users/" + (await u.id())) : null;
-      })().catch(function () { return null; });
-      return docs;
+      var id = await uid(), db = id ? await use("db") : null;
+      try { return db ? db.collection("data/users/" + id) : null; } catch (e) { return null; }
     }
     async function get(key) {
       try {
@@ -87,7 +98,8 @@ var LiteBridge = (function (w) {
           return d && typeof d.value === "string" ? d.value : null;
         }
       } catch (e) { /* next store */ }
-      try { if (local) return local.getItem(key); } catch (e) { /* next store */ }
+      var id = await uid();
+      try { if (local && id) return local.getItem("lite:" + id + ":" + key); } catch (e) { /* next store */ }
       return key in mem ? mem[key] : null;
     }
     async function set(key, value) {
@@ -95,14 +107,15 @@ var LiteBridge = (function (w) {
         var col = await users();
         if (col) { await col.doc(key).set({ value: value }); return true; }
       } catch (e) { /* next store */ }
-      try { if (local) { local.setItem(key, value); return true; } } catch (e) { /* next store */ }
+      var id = await uid();
+      try { if (local && id) { local.setItem("lite:" + id + ":" + key, value); return true; } } catch (e) { /* next store */ }
       mem[key] = value;
       return true;
     }
-    return { runtime: runtime, sheets: sheets, complete: complete, get: get, set: set };
+    return { runtime: runtime, ready: ready, sheets: sheets, complete: complete, get: get, set: set };
   }
 
-  var bridge = { create: create, CONFIG: CONFIG, SIGN_IN: SIGN_IN };
+  var bridge = { create: create, CONFIG: CONFIG, SIGN_IN: SIGN_IN, NOT_READY: NOT_READY };
   if (w) Object.assign(bridge, create({ claude: w.claude, localStorage: (function () {
     try { return w.localStorage; } catch (e) { return null; }
   })() }));

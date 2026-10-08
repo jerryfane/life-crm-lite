@@ -187,9 +187,11 @@ var LiteSource = (function () {
   function quoteTab(title) { return "'" + title.replace(/'/g, "''") + "'"; }
 
   // ---------- the source ----------
+  // The sheet id from a https://docs.google.com/spreadsheets/d/<id>… link, or a bare id; "" for anything else.
   function sheetIdOf(url) {
-    var m = /\/spreadsheets\/d\/([\w-]{10,})/.exec(url || "") || /^([\w-]{20,})$/.exec(String(url || "").trim());
-    return m && !/^EXAMPLE/.test(m[1]) ? m[1] : ""; // the examples' made-up links aren't sheets
+    var s = String(url || "").trim();
+    var m = /^https:\/\/docs\.google\.com\/spreadsheets\/d\/([A-Za-z0-9_-]{20,})(?:[/?#]|$)/.exec(s) || /^([A-Za-z0-9_-]{20,})$/.exec(s);
+    return m ? m[1] : "";
   }
   function msg(e) { return String((e && e.message) || e); }
   function timeout(p, ms, what) {
@@ -240,6 +242,12 @@ var LiteSource = (function () {
       } catch (e) { return { ok: false, error: msg(e) }; }
     }
     function signIn() { return (bridge && bridge.SIGN_IN) || "Sign in to claude.ai in this browser, then reload."; }
+    // The plain message when the Sheets tool names aren't set up yet (bridge CONFIG still "?"), else "".
+    function notReady() {
+      var ops = [].slice.call(arguments);
+      return bridge && typeof bridge.ready === "function" && !ops.every(bridge.ready) ? bridge.NOT_READY ||
+        "Your sheet can't be read yet: the connector details are being set up." : "";
+    }
 
     // Every tab with typed cells in one call; if the answer has no cells, each tab's values one by one.
     async function readBook(id) {
@@ -260,8 +268,8 @@ var LiteSource = (function () {
       if (state !== "ok") return embeddedResult("no_runtime");
       var sheet = await getSheet();
       if (!sheet) return embeddedResult("no_sheet");
-      var error;
-      try {
+      var error = notReady("info");
+      if (!error) try {
         var book = await readBook(sheet.id);
         if (!tabNamed(book, "Steps") && !tabNamed(book, "Timelines")) throw new Error("that sheet isn't a life-crm sheet");
         var data = fromBook(book), at = now().toISOString();
@@ -278,6 +286,7 @@ var LiteSource = (function () {
       try {
         var sheet = await getSheet();
         if (!sheet) return { ok: false, error: "Connect your sheet first" };
+        if (notReady("read", "write")) return { ok: false, error: notReady("read", "write") };
         var r = await call("read", sheet.id, "Steps");
         var g = grid({ rows: (r && r.values) || [] }), head = (g[0] || []).map(headerKey);
         var idCol = head.indexOf("id"), statusCol = head.indexOf("status");

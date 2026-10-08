@@ -82,15 +82,17 @@ No official page documents these calls. All runtime calls therefore live in one 
 
 - **`bridge.js`** (`window.LiteBridge`) is the only file that calls `claude.use`.
   - `CONFIG` at the top holds `SHEETS_SERVER` ("Google Sheets"), `DRIVE_SERVER` (not called), `SHEETS_TOOLS`
-    (`read`, `write`, `info`; `"?"` until known, which makes calls fail with a clear message) and `SHEETS_ARGS`
+    (`read`, `write`, `info`; `"?"` until known: then no tool is called, and `load()` / `markDone()` say "Your
+    sheet can't be read yet: the connector details are being set up.") and `SHEETS_ARGS`
     (each tool's input, in Google's shape).
   - `runtime()` returns `"none"` outside claude.ai, `"signed-out"` when `user` or `db` is null, and `"ok"` otherwise.
   - `sheets(op, …)` calls `mcp.callTool(SHEETS_SERVER, tool, input)` and returns `.payload`. When `mcp` is null it
     throws "Sign in to claude.ai in this browser, then reload.", or, for a signed-in viewer, a message to connect
     Google Sheets.
   - `complete(system, prompt)` calls `sample(system + "\n\n" + prompt)` and returns `.text`.
-  - `get` / `set` use the viewer's `db` space. If that is missing or fails, they fall back to `localStorage`, then
-    to memory. They never throw, and every `localStorage` access is guarded.
+  - `get` / `set` use the viewer's `db` space. If that is missing or fails, they fall back to `localStorage` under
+    keys scoped to the viewer (`lite:<uid>:<key>`), so two people on one browser never see each other's data.
+    Without a viewer id they keep data in memory only. They never throw, and every `localStorage` access is guarded.
 - **`source.js`** (`window.LiteSource`) is the dashboard's contract. Nothing in it throws.
   - `load()` returns:
     - `source: "embedded"` with no error outside claude.ai;
@@ -101,7 +103,8 @@ No official page documents these calls. All runtime calls therefore live in one 
   - Live reading: `info` gets every tab with typed cells in one call. If the answer has no cells, `read` fetches
     each tab. Rows become the data block by the same rules as `tools/convert.py to-json`.
   - `getSheet()` / `setSheet(url|null)` handle the viewer's sheet link, saved in their `db`. If the viewer has none,
-    the page uses a real `sheet.url` in the embedded block (copy mode).
+    the page uses a real `sheet.url` in the embedded block (copy mode). Only `https://docs.google.com/spreadsheets/d/<id>`
+    links (id: 20+ letters, digits, `_` or `-`) or a bare id are accepted.
   - `markDone(stepId)` reads `Steps`, finds the row (by its `id` cell, or `s1`, `s2`… by position) and writes
     `done` into its `status` cell.
   - `ask(question, data)` sends a fixed system text. The plan (owner name and tone included) goes in the user part

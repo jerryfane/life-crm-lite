@@ -36,9 +36,10 @@ function mockBridge(ops = {}, opts = {}) {
   return {
     calls, store,
     async runtime() { return opts.runtime || "ok"; },
+    ready: (op) => !!ops[op],
     async sheets(op, ...args) {
       calls.push({ op, args });
-      if (!ops[op]) throw new Error("this page doesn't know the Google Sheets tools yet");
+      if (!ops[op]) throw new Error("called a tool that isn't set up");
       return ops[op](...args);
     },
     async complete(system, prompt) { calls.push({ complete: { system, prompt } }); return opts.answer ? opts.answer(system, prompt) : "ok"; },
@@ -88,12 +89,24 @@ test("the tricky sheet keeps dates, extras, Profile name, json: settings and the
   assert.equal(d.steps[1].id, "s2"); // numbered among filled rows: the empty row doesn't count
 });
 
-test("sheet ids come from Google Sheets links only; example links don't count", () => {
+test("sheet ids come from https://docs.google.com/spreadsheets/d/<id> links or bare ids only", () => {
   assert.equal(LiteSource.sheetIdOf(URL), ID);
   assert.equal(LiteSource.sheetIdOf(`https://docs.google.com/spreadsheets/d/${ID}`), ID);
-  assert.equal(LiteSource.sheetIdOf(""), "");
-  assert.equal(LiteSource.sheetIdOf("https://example.com/x"), "");
-  assert.equal(LiteSource.sheetIdOf("https://docs.google.com/spreadsheets/d/EXAMPLE-maya"), "");
+  assert.equal(LiteSource.sheetIdOf(` https://docs.google.com/spreadsheets/d/${ID}?usp=sharing#gid=0 `), ID);
+  assert.equal(LiteSource.sheetIdOf(ID), ID);
+  for (const bad of ["", null, "https://example.com/x", "https://docs.google.com/spreadsheets/d/EXAMPLE-maya",
+    `https://evil.example/spreadsheets/d/${ID}`,
+    `https://docs.google.com.evil.example/spreadsheets/d/${ID}`,
+    `https://evil.example/?https://docs.google.com/spreadsheets/d/${ID}`,
+    `https://docs.google.com@evil.example/spreadsheets/d/${ID}`,
+    `https://docs-google.com/spreadsheets/d/${ID}`,
+    `http://docs.google.com/spreadsheets/d/${ID}`,
+    `https://docs.google.com/document/d/${ID}`,
+    `https://docs.google.com/spreadsheets/d/${ID}.evil`,
+    "https://docs.google.com/spreadsheets/d/short123",
+    `${ID}/../x`]) {
+    assert.equal(LiteSource.sheetIdOf(bad), "", String(bad));
+  }
 });
 
 // ---------- load(): the states the first-run screen needs ----------
@@ -154,9 +167,11 @@ test("load: saved copy of that sheet (with the reason) when the read fails, then
 });
 
 test("load: unknown tools, a non-CRM sheet, a broken cache and a hanging connector never throw", async () => {
-  let r = await source(mockBridge(), { sheet: { url: URL } }).load();
+  const unset = mockBridge();
+  let r = await source(unset, { sheet: { url: URL } }).load();
   assert.equal(r.source, "embedded");
-  assert.match(r.error, /doesn't know the Google Sheets tools yet/);
+  assert.equal(r.error, "Your sheet can't be read yet: the connector details are being set up.");
+  assert.equal(unset.calls.length, 0, "no tool is called while the names aren't set up");
 
   const other = mockBridge({ info: () => ({ sheets: [{ properties: { title: "Budget" }, data: [{ rowData: [{ values: [{ formattedValue: "x" }] }] }] }] }) },
     { store: { [`lite-crm:${ID}`]: "{broken" } });
@@ -196,13 +211,18 @@ test("markDone writes done to the status cell of the step's row", async () => {
   assert.equal(writes[1].range, "Steps!C4");
 });
 
-test("markDone reports a missing step, a missing column, a refused write and no sheet", async () => {
-  let src = source(mockBridge({ read: () => ({ values: stepsValues() }) }), { sheet: { url: URL } });
+test("markDone reports tools not set up, a missing step, a missing column, a refused write and no sheet", async () => {
+  const half = mockBridge({ read: () => ({ values: stepsValues() }) });
+  let r = await source(half, { sheet: { url: URL } }).markDone("s1");
+  assert.deepEqual(r, { ok: false, error: "Your sheet can't be read yet: the connector details are being set up." });
+  assert.equal(half.calls.length, 0);
+  const refusing = { read: () => ({ values: stepsValues() }), write: () => { throw new Error("needs approval"); } };
+  let src = source(mockBridge(refusing), { sheet: { url: URL } });
   assert.match((await src.markDone("s99")).error, /isn't in your sheet/);
-  const r = await src.markDone("s1");
+  r = await src.markDone("s1");
   assert.equal(r.ok, false);
-  assert.match(r.error, /Couldn't mark it done in your sheet: .*tools yet/);
-  src = source(mockBridge({ read: () => ({ values: [["title"], ["A"]] }) }), { sheet: { url: URL } });
+  assert.equal(r.error, "Couldn't mark it done in your sheet: needs approval");
+  src = source(mockBridge({ ...refusing, read: () => ({ values: [["title"], ["A"]] }) }), { sheet: { url: URL } });
   assert.match((await src.markDone("s1")).error, /no status column/);
   assert.match((await source(mockBridge(), {}).markDone("s1")).error, /Connect your sheet first/);
 });
@@ -253,7 +273,10 @@ test("bridge.sheets calls the configured tool through claude.use('mcp') and retu
   const seen = [];
   const mcp = { callTool: async (server, tool, input) => { seen.push({ server, tool, input }); return { payload: { values: [["a"]] } }; } };
   const b = LiteBridge.create(runtime({ mcp, user: {}, db: {} }));
-  await assert.rejects(b.sheets("read", ID, "Steps"), /doesn't know the Google Sheets tools yet/);
+  await assert.rejects(b.sheets("read", ID, "Steps"), new RegExp(LiteBridge.NOT_READY.replace(/[.?]/g, "\\$&")));
+  await assert.rejects(b.sheets("write", ID, "Steps!C2", [["done"]]), /can't be read yet/);
+  assert.equal(seen.length, 0, "callTool is never called with a placeholder name");
+  assert.equal(b.ready("read"), false);
   const tools = LiteBridge.CONFIG.SHEETS_TOOLS, saved = { ...tools };
   try {
     Object.assign(tools, { read: "get_values", write: "update_values", info: "get_spreadsheet" });
@@ -307,7 +330,7 @@ test("bridge storage falls through: rejecting db -> localStorage -> memory; neve
   const local = fakeLocal();
   let b = LiteBridge.create({ ...runtime({ db: fakeDb(true), user: { id: async () => "u" } }), localStorage: local });
   assert.equal(await b.set("a", "2"), true);
-  assert.equal(local.m.a, "2");
+  assert.equal(local.m["lite:u:a"], "2");
   assert.equal(await b.get("a"), "2");
 
   const blocked = { getItem() { throw new Error("SecurityError"); }, setItem() { throw new Error("SecurityError"); } };
@@ -315,8 +338,32 @@ test("bridge storage falls through: rejecting db -> localStorage -> memory; neve
   assert.equal(await b.set("a", "3"), true);
   assert.equal(await b.get("a"), "3");
 
+  // no viewer id: memory only, localStorage is neither read nor written
   b = LiteBridge.create({ claude: { use: async () => null }, localStorage: local });
-  assert.equal(await b.get("a"), "2");
+  assert.equal(await b.get("a"), null);
+  assert.equal(await b.set("b", "5"), true);
+  assert.equal(await b.get("b"), "5");
+  assert.deepEqual(Object.keys(local.m), ["lite:u:a"]);
+  b = LiteBridge.create({ ...runtime({ db: fakeDb(true), user: { id: async () => { throw new Error("x"); } } }), localStorage: local });
+  assert.equal(await b.get("a"), null);
+  await b.set("c", "6");
+  assert.deepEqual(Object.keys(local.m), ["lite:u:a"]);
+});
+
+test("two viewers in one browser, db failing: neither sees the other's sheet link or plan", async () => {
+  const local = fakeLocal();
+  const viewer = (uid) => LiteSource.create({ embedded: {}, now: () => NOW,
+    bridge: LiteBridge.create({ ...runtime({ db: fakeDb(true), user: { id: async () => uid } }), localStorage: local }) });
+  const ana = viewer("ana"), bo = viewer("bo");
+  // runtime() is "ok" (user + db present) even though db calls fail, so setSheet saves through the fallback
+  assert.deepEqual(await ana.setSheet(URL), { ok: true });
+  assert.equal((await ana.getSheet()).id, ID);
+  assert.equal(await bo.getSheet(), null);
+  assert.equal((await bo.load()).error, "no_sheet");
+  local.m[`lite:ana:lite-crm:${ID}`] = JSON.stringify({ at: "x", data: { title: "Ana's plan" } });
+  const bridgeBo = LiteBridge.create({ ...runtime({ db: fakeDb(true), user: { id: async () => "bo" } }), localStorage: local });
+  assert.equal(await bridgeBo.get(`lite-crm:${ID}`), null);
+  assert.ok(Object.keys(local.m).every((k) => k.startsWith("lite:ana:")));
 });
 
 test("bridge loads even when reading window.localStorage throws", () => {
