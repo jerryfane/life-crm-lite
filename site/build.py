@@ -242,12 +242,15 @@ def example_cards(examples: list[tuple[str, str, str, list[str]]]) -> str:
     return "".join(cards)
 
 
-def dashboard_step(mode: str, url: str, has_dashboard: bool) -> dict[str, str]:
+def dashboard_step(mode: str, url: str, has_dashboard: bool, has_sheet_flow: bool = False) -> dict[str, str]:
     """The room page's dashboard step for one DASHBOARD_MODE."""
     if mode not in DASHBOARD_MODES:
         sys.exit(f"DASHBOARD_MODE must be one of {', '.join(DASHBOARD_MODES)}, not {mode!r}")
     if url and not url.startswith("https://"):
         sys.exit(f"DASHBOARD_URL must start with https://, not {url!r}")
+    if (url or mode != "published") and not has_sheet_flow:
+        sys.exit("DASHBOARD_URL and copy mode need a dashboard/dist/dashboard.html with the sheet-link flow (setSheet); "
+                 "without it the room page would promise something the dashboard can't do.")
     if mode == "published":
         # ── DASHBOARD_MODE: published ──
         # Until DASHBOARD_URL is set the dashboard isn't published, so the step promises nothing about it.
@@ -304,6 +307,11 @@ def build(out: Path, root: Path = ROOT, mode: str = DASHBOARD_MODE, url: str = D
     # Dashboard and viewer: built in their own folders; copied as they are.
     dashboard = root / "dashboard" / "dist" / "dashboard.html"
     has_dashboard = dashboard.is_file()
+    # The configured steps (a published link, or copy mode) tell people the dashboard takes and keeps their
+    # sheet link. This check is only a tripwire against configuring them by mistake before that code exists;
+    # it can't prove the flow works. The real gate: set DASHBOARD_URL or copy mode only after the sheet-link PRs
+    # (#31, #33) are merged and Jerry's live test in claude.ai has read his sheet through the published dashboard.
+    has_sheet_flow = has_dashboard and "setSheet" in dashboard.read_text()
     if has_dashboard:
         (out / "dashboard").mkdir()
         shutil.copy2(dashboard, out / "dashboard" / "index.html")
@@ -354,7 +362,7 @@ def build(out: Path, root: Path = ROOT, mode: str = DASHBOARD_MODE, url: str = D
         # The parser drops one newline right after <textarea>, so keep the skill's first line intact.
         "SKILL_TEXT": "\n" + html.escape(skill),
         "EXAMPLES": example_cards(found),
-        **dashboard_step(mode, url, has_dashboard),
+        **dashboard_step(mode, url, has_dashboard, has_sheet_flow),
         "SITE_URL": attr(SITE_URL),
     }, "site/src/index.html")
     (out / "index.html").write_text(index)

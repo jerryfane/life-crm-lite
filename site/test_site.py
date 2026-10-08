@@ -81,9 +81,10 @@ class Build(unittest.TestCase):
             build.build(out, self.tmp, **kw)
         return out, err.getvalue()
 
-    def add_dashboard(self):
+    def add_dashboard(self, sheet_flow=False):
         (self.tmp / "dashboard" / "dist").mkdir(parents=True)
-        (self.tmp / "dashboard" / "dist" / "dashboard.html").write_text("<!doctype html><title>d</title>")
+        body = "<!doctype html><title>d</title>" + ("<script>LiteSource.setSheet</script>" if sheet_flow else "")
+        (self.tmp / "dashboard" / "dist" / "dashboard.html").write_text(body)
 
     def test_without_inputs(self):
         out, _ = self.run_build()
@@ -110,7 +111,15 @@ class Build(unittest.TestCase):
         self.assertNotIn('download="dashboard.html"', index)
         self.assertEqual((out / "dashboard" / "index.html").read_text(), "<!doctype html><title>d</title>")
 
+    def test_configured_paths_need_the_sheet_link_flow(self):
+        # Without the dashboard's sheet-link flow, a link or copy mode would promise what the dashboard can't do.
+        self.add_dashboard()
+        for kw in ({"url": "https://claude.ai/public/artifacts/x"}, {"mode": "copy"}):
+            with self.assertRaises(SystemExit, msg=kw):
+                self.run_build(**kw)
+
     def test_published_with_url(self):
+        self.add_dashboard(sheet_flow=True)
         out, _ = self.run_build(mode="published", url="https://claude.ai/public/artifacts/x?a=1&b=2")
         index = (out / "index.html").read_text()
         self.assertIn('href="https://claude.ai/public/artifacts/x?a=1&amp;b=2"', index)
@@ -124,7 +133,7 @@ class Build(unittest.TestCase):
                 self.run_build(**kw)
 
     def test_copy_mode(self):
-        self.add_dashboard()
+        self.add_dashboard(sheet_flow=True)
         out, _ = self.run_build(mode="copy", url="https://claude.ai/x")
         index = (out / "index.html").read_text()
         self.assertEqual(index.count('download="dashboard.html"'), 2)  # Project files step and dashboard step
