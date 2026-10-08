@@ -51,6 +51,11 @@ SETTINGS = [
     ("account", "sheet.account", "Google account this sheet is saved in"),
 ]
 SETTING_ALIASES = {"toneline": "tone_line"}
+SHEET_KEYS = {"url", "account"}
+# Extra fields in Settings: plain text stays under its own key (like the full kit's window_start);
+# anything else is JSON text under "json:<key>", and extra `sheet` fields under "json:sheet.<key>".
+JSON_TAG = "json:"
+SHEET_TAG = "sheet."
 TOP_KEYS = {"lite", "title", "owner", "updated", "tone", "toneLine", "sheet", "areas", "steps", "lists", "people"}
 
 RESERVED_TABS = {"timelines", "steps", "settings", "collections", "people", "profile", "entries"}
@@ -113,6 +118,17 @@ def tab_named(wb, name: str):
 
 def date_column(columns: list[str]) -> str:
     return next((c for c in columns if DATE_COLUMN_RE.search(header_key(c))), "")
+
+
+def real_date(value: str) -> bool:
+    """A real calendar day (YYYY-MM-DD) or month (YYYY-MM)."""
+    if not DATE_RE.fullmatch(value):
+        return False
+    try:
+        date.fromisoformat(value if len(value) == 10 else value + "-01")
+    except ValueError:
+        return False
+    return True
 
 
 # ---------- data block -> rows ----------
@@ -181,6 +197,7 @@ def write_tab(wb, title: str, cols: list[str], rows: list[tuple[dict, dict]]) ->
     index = {header_key(c): n for n, c in enumerate(cols)}
     ws = wb.create_sheet(title)
     ws.append(cols)
+    keep_text(ws[1])
     for row, extras in rows:
         values = [None] * len(cols)
         for k, v in row.items():
@@ -188,10 +205,15 @@ def write_tab(wb, title: str, cols: list[str], rows: list[tuple[dict, dict]]) ->
         for k, v in extras.items():
             values[index[header_key(k)]] = v
         ws.append([None if v is None or v == "" else to_cell(v) for v in values])
-        for c in ws[ws.max_row]:
-            if isinstance(c.value, str) and c.value.startswith("="):
-                c.data_type = "s"  # text, never a formula
+        keep_text(ws[ws.max_row])
     style(ws)
+
+
+def keep_text(cells) -> None:
+    """A value starting with '=' stays text, never a formula (headers included)."""
+    for c in cells:
+        if isinstance(c.value, str) and c.value.startswith("="):
+            c.data_type = "s"
 
 
 def style(ws) -> None:
@@ -226,9 +248,7 @@ def to_workbook(data: dict) -> Workbook:
         top, _, sub = path.partition(".")
         value = sheet.get(sub) if sub else data.get(top, 1 if top == "lite" else None)
         settings.append(({"key": key, "value": value, "meaning": meaning}, {}))
-    for k, v in data.items():
-        if k not in TOP_KEYS:
-            settings.append(({"key": k, "value": v if isinstance(v, str) else json.dumps(v, ensure_ascii=False)}, {}))
+    settings += extra_settings_rows(data)
     write_tab(wb, "Settings", SETTINGS_COLS, settings)
 
     collections = [(list_row(lst, i, tabs[i], area_names), extras_of(lst, LIST_KEYS)) for i, lst in enumerate(lists)]
@@ -244,6 +264,36 @@ def to_workbook(data: dict) -> Workbook:
             rows.append((row, {k: v for k, v in r.items() if k not in columns}))
         write_tab(wb, tab, columns, rows)
     return wb
+
+
+def setting_key(key: str) -> str:
+    k = key.strip().lower()
+    return SETTING_ALIASES.get(k, k)
+
+
+def extra_settings_rows(data: dict) -> list[tuple[dict, dict]]:
+    """Unknown top-level fields and extra `sheet` fields, as Settings rows (see JSON_TAG)."""
+    known = {key for key, _, _ in SETTINGS}
+    rows = []
+    for k, v in data.items():
+        if k in TOP_KEYS:
+            continue
+        plain = (isinstance(v, str) and k == k.strip() and setting_key(k) not in known
+                 and not k.lower().startswith(JSON_TAG))
+        rows.append(({"key": k, "value": v} if plain
+                     else {"key": JSON_TAG + k, "value": json.dumps(v, ensure_ascii=False)}, {}))
+    sheet = data.get("sheet")
+    for k, v in sheet.items() if isinstance(sheet, dict) else []:
+        if k not in SHEET_KEYS:
+            rows.append(({"key": JSON_TAG + SHEET_TAG + k, "value": json.dumps(v, ensure_ascii=False)}, {}))
+    return rows
+
+
+def json_or_text(value: object) -> object:
+    try:
+        return json.loads(text(value))
+    except ValueError:
+        return text(value)
 
 
 # ---------- workbook reading ----------
@@ -278,14 +328,20 @@ def by_key(raw: dict) -> dict:
 
 def from_workbook(wb) -> dict:
     # Settings (and Profile's name, for sheets made with the full kit)
-    settings, extra_settings = {}, {}
+    settings, extra_settings, sheet_extras = {}, {}, {}
     ws = tab_named(wb, "Settings")
     known = {key for key, _, _ in SETTINGS}
     for row in ws.iter_rows(min_row=2, values_only=True) if ws else []:
         if len(row) >= 2 and text(row[0]).strip():
             raw_key = text(row[0]).strip()
-            key = SETTING_ALIASES.get(raw_key.lower(), raw_key.lower())
-            if key in known:
+            key = setting_key(raw_key)
+            if key.startswith(JSON_TAG):
+                name = raw_key[len(JSON_TAG):]
+                if name.lower().startswith(SHEET_TAG):
+                    sheet_extras[name[len(SHEET_TAG):]] = json_or_text(row[1])
+                else:
+                    extra_settings[name] = json_or_text(row[1])
+            elif key in known:
                 settings[key] = cell_value(row[1])
             else:
                 extra_settings[raw_key] = text(row[1])
@@ -302,7 +358,7 @@ def from_workbook(wb) -> dict:
         "updated": text(settings.get("updated")),
         "tone": text(settings.get("tone")).strip().lower() or "none",
         "toneLine": text(settings.get("tone_line")),
-        "sheet": {"url": text(settings.get("sheet_url")), "account": text(settings.get("account"))},
+        "sheet": {"url": text(settings.get("sheet_url")), "account": text(settings.get("account")), **sheet_extras},
     }
 
     # Timelines -> areas
@@ -346,9 +402,13 @@ def from_workbook(wb) -> dict:
             continue
         lst = {"id": cid, "name": text(r.get("name")) or cid.title(), "area": text(r.get("area")).strip()}
         data_ws = tab_named(wb, tab) if tab else None
-        columns, rows = read_tab(data_ws) if data_ws else ([], [])
+        headers, rows = read_tab(data_ws) if data_ws else ([], [])
+        # The list's own columns are title_field + fields; any other header is an extra field of its rows.
+        named = {header_key(f) for f in [r.get("title_field"), *re.split(r"[|,]", text(r.get("fields")))]} - {""}
+        columns = [h for h in headers if header_key(h) in named] if named else headers
         lst["columns"] = columns
-        lst["rows"] = [{c: ("" if row.get(c) is None else row.get(c)) for c in columns} for row in rows]
+        lst["rows"] = [{**{c: ("" if row.get(c) is None else row.get(c)) for c in columns},
+                        **{h: v for h, v in row.items() if h not in columns and text(v).strip()}} for row in rows]
         lists.append(take_extras(lst, raw, {"id", "name", "tab", "area"},
                                  list_row(lst, len(lists), tab, area_names), COLLECTION_COLS))
     data["lists"] = lists
@@ -395,8 +455,8 @@ def validate(data: dict) -> list[str]:
             if s.get(k) not in LEVELS:
                 out.append(f"{where}: {k} must be high or low")
         for k in ("date", "start", "end"):
-            if s.get(k) is not None and not DATE_RE.fullmatch(str(s.get(k))):
-                out.append(f"{where}: {k} '{s.get(k)}' is not YYYY-MM-DD or YYYY-MM")
+            if s.get(k) is not None and not real_date(str(s.get(k))):
+                out.append(f"{where}: {k} '{s.get(k)}' is not a real date (YYYY-MM-DD) or month (YYYY-MM)")
         if s.get("date") and (s.get("start") or s.get("end")):
             out.append(f"{where}: either date, or start + end, not both")
         if bool(s.get("start")) != bool(s.get("end")):
@@ -413,9 +473,12 @@ def validate(data: dict) -> list[str]:
     for lst in data.get("lists") or []:
         if lst.get("area") and lst.get("area") not in area_ids:
             out.append(f"list {lst.get('id')}: unknown area '{lst.get('area')}'")
-        for row in lst.get("rows") or []:
-            if set(row) - set(lst.get("columns") or []):
-                out.append(f"list {lst.get('id')}: row keys {sorted(set(row) - set(lst['columns']))} are not columns")
+        columns = [str(c) for c in lst.get("columns") or []]
+        keys = [header_key(c) for c in columns]
+        if not columns:
+            out.append(f"list {lst.get('id')}: needs at least one column")
+        if "" in keys or len(set(keys)) != len(keys) or any(re.search(r"[,|]", c) for c in columns):
+            out.append(f"list {lst.get('id')}: column names must be unique, not empty, without , or |")
     for p in data.get("people") or []:
         if not p.get("name"):
             out.append(f"person {p}: needs a name")
