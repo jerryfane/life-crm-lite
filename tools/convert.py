@@ -38,6 +38,15 @@ STEP_KEYS = {"id", "area", "title", "status", "owner", "date", "start", "end", "
              "urgency", "notes", "link"}
 LIST_KEYS = {"id", "name", "area", "columns", "rows"}
 PERSON_KEYS = {"name", "role", "area", "contact"}
+# Sheet columns an extra field may fill when it has exactly that column's name: the ones the converter
+# leaves empty and the derived ones it never reads back (a full-kit `kind: milestone`, a list's `group`).
+# Every other column holds a data-block value (title, role…) or steers reading (a list's tab, title_field,
+# fields), so an extra field there would overwrite it.
+OPEN_COLS = {"Timelines": {"group", "link", "show", "order"},
+             "Steps": {"track", "kind", "progress", "phase", "pin", "show"},
+             "Collections": {"layout", "status_field", "statuses", "date_field", "group", "icon", "description",
+                             "empty_text", "show", "order"},
+             "People": set()}
 
 # Settings rows: (sheet key, data-block key, meaning shown in the sheet).
 SETTINGS = [
@@ -484,6 +493,44 @@ def validate(data: dict) -> list[str]:
             out.append(f"person {p}: needs a name")
         if p.get("area") and p.get("area") not in area_ids:
             out.append(f"person {p.get('name')}: unknown area '{p.get('area')}'")
+    out += field_collisions("areas", [(f"area {a.get('id')}", a) for a in data.get("areas") or []],
+                            AREA_KEYS, TIMELINE_COLS, OPEN_COLS["Timelines"])
+    out += field_collisions("steps", [(f"step {s.get('id')} '{s.get('title')}'", s) for s in data.get("steps") or []],
+                            STEP_KEYS, STEP_COLS, OPEN_COLS["Steps"])
+    out += field_collisions("lists", [(f"list {lst.get('id')}", lst) for lst in data.get("lists") or []],
+                            LIST_KEYS, COLLECTION_COLS, OPEN_COLS["Collections"])
+    out += field_collisions("people", [(f"person {p.get('name')}", p) for p in data.get("people") or []],
+                            PERSON_KEYS, PEOPLE_COLS, OPEN_COLS["People"])
+    return out
+
+
+def field_collisions(label: str, objects: list[tuple[str, dict]], known: set[str], cols: list[str],
+                     open_cols: set[str]) -> list[str]:
+    """Extra fields of areas, steps, lists or people that would land in a column already in use.
+
+    An extra field may fill one of the tab's columns only if it has exactly that column's name and the
+    column is in OPEN_COLS; otherwise one value would overwrite the other."""
+    col_by_key = {header_key(c): c for c in cols}
+    out, names = [], {}
+    for where, obj in objects:
+        for k in obj:
+            if k in known:
+                continue
+            key = header_key(k)
+            col = col_by_key.get(key)
+            if not key:
+                out.append(f"{where}: field {k!r} is empty as a sheet header")
+            elif col is not None and not (k == col and col in open_cols):
+                out.append(f"{where}: field {k!r} would share the sheet column '{col}'; "
+                           + (f"write it as '{col}' or rename it" if col in open_cols
+                              else "that column already holds another value, so rename it"))
+            elif col is None:
+                same = names.setdefault(key, [])
+                if k not in same:
+                    same.append(k)
+    out += [f"{label}: {', '.join(map(repr, same))} would share one sheet column ('{key}'); "
+            f"rename them so they differ in more than case, spaces or anything in brackets"
+            for key, same in names.items() if len(same) > 1]
     return out
 
 
