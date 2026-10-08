@@ -5,7 +5,8 @@
     site/deploy.sh                 # build, then deploy site/dist/ as one Cloudflare Worker
 
 Required:
-    site/src/            the room page (index.html), the shell of the other pages (shell.html), style.css, room.js
+    site/src/            the room page (index.html), the shell of the other pages (shell.html), style.css, room.js,
+                         dashboard-maya.webp (the hero picture: /dashboard/ with Maya's example, 2560x1600)
 
 Optional inputs (the build works without each one and shows "coming soon"):
     skill/SKILL.md       the skill: copied by the big button, shown at /skill/, raw at /SKILL.md
@@ -21,6 +22,7 @@ Output layout:
     /viewer/             viewer (or a "coming soon" page)
     /dashboard/          the dashboard preview, when it exists
     /examples/<name>/    each example transcript, plus its data files
+    /dashboard-maya.webp the hero picture
     /qr.svg  /qr.png     QR code of the room page URL, made at build time
 """
 from __future__ import annotations
@@ -40,7 +42,7 @@ HERE = Path(__file__).resolve().parent
 ROOT = HERE.parent
 SRC = HERE / "src"
 SITE_URL = "https://life-crm-lite.jerryfane.com/"
-SRC_FILES = ("index.html", "shell.html", "style.css", "room.js")
+SRC_FILES = ("index.html", "shell.html", "style.css", "room.js", "dashboard-maya.webp")
 EXAMPLE_NAME = re.compile(r"[a-z0-9-]+")  # used in URLs and file paths, so kept plain
 
 sys.path.insert(0, str(HERE / "vendor"))
@@ -261,7 +263,7 @@ def build(out: Path, root: Path = ROOT) -> None:
         sys.exit(f"site/src/ is required and is missing {', '.join(missing)}: the room page can't be built without it.")
     shutil.rmtree(out, ignore_errors=True)
     out.mkdir(parents=True)
-    for name in ("style.css", "room.js"):
+    for name in ("style.css", "room.js", "dashboard-maya.webp"):
         shutil.copy2(SRC / name, out / name)
 
     # The skill: the big button copies it, /skill/ shows it, /SKILL.md is the raw file.

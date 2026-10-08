@@ -33,19 +33,34 @@
 
 <main>
   <section class="hero">
-    <div class="wrap">
-      <div>
-        <p class="eyebrow">life-crm training · Sunday 11 October</p>
-        <h1>Bring a laptop and Claude Pro (or Max)</h1>
-        <p class="sub">Copy the skill into a Claude Project and talk about what matters to you right now. Claude asks a few good questions, then sets up your life CRM in your Google Drive.</p>
-        <div class="cta">
-          <button class="btn big" type="button" data-copy-skill disabled><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="8" y="8" width="12" height="12" rx="3" fill="none" stroke="currentColor" stroke-width="2"/><path d="M16 8V6a2 2 0 0 0-2-2H6a2 2 0 0 0-2 2v8a2 2 0 0 0 2 2h2" fill="none" stroke="currentColor" stroke-width="2"/></svg>Copy the skill</button>
-          <a class="more" href="/dashboard/">See the dashboard</a>
+    <div class="hero-in">
+      <div class="head">
+        <div>
+          <p class="eyebrow">life-crm training · Sunday 11 October</p>
+          <h1><span>Bring a laptop</span> <span>and Claude Pro (or Max)</span></h1>
         </div>
-        <p class="copied" data-copied role="status">{{SKILL_NOTE}}</p>
-        <textarea data-skill hidden readonly aria-hidden="true">{{SKILL_TEXT}}</textarea>
+        <div>
+          <p class="sub">Copy the skill into a Claude Project and talk about what matters to you right now. Claude asks a few good questions, then sets up your life CRM in your Google Drive.</p>
+          <div class="cta">
+            <button class="btn" type="button" data-copy-skill disabled><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="8" y="8" width="12" height="12" rx="3" fill="none" stroke="currentColor" stroke-width="2"/><path d="M16 8V6a2 2 0 0 0-2-2H6a2 2 0 0 0-2 2v8a2 2 0 0 0 2 2h2" fill="none" stroke="currentColor" stroke-width="2"/></svg>Copy the skill</button>
+            <a class="more" href="/dashboard/">See the dashboard</a>
+          </div>
+          <p class="copied" data-copied role="status">{{SKILL_NOTE}}</p>
+          <textarea data-skill hidden readonly aria-hidden="true">{{SKILL_TEXT}}</textarea>
+        </div>
       </div>
+      <figure class="hero-shot">
+        <a class="bw" href="/dashboard/" aria-label="Open the dashboard preview">
+          <span class="bw-bar" aria-hidden="true"><i></i><i></i><i></i><span class="bw-u"><span>life-crm-lite.jerryfane.com/dashboard</span></span></span>
+          <span class="zoom"><img src="/dashboard-maya.webp" width="2560" height="1600" alt="Maya's dashboard: her areas in a sidebar, what's due next and what to do first"></span>
+        </a>
+        <figcaption>Maya’s dashboard. Maya is fictional.</figcaption>
+      </figure>
+    </div>
+  </section>
 
+  <section class="sec" id="get">
+    <div class="wrap">
       <aside class="get" aria-labelledby="get-h">
         <h2 id="get-h">What you’ll get</h2>
         <ul>

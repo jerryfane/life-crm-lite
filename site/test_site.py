@@ -95,6 +95,13 @@ class Build(unittest.TestCase):
         self.assertTrue((out / "dashboard" / "index.html").is_file())
         self.assertNotIn("ChatGPT", index)
         self.assertIn('href="/viewer/">backup page</a>', index)
+        # the hero picture is copied and used
+        self.assertEqual((out / "dashboard-maya.webp").read_bytes(), (build.SRC / "dashboard-maya.webp").read_bytes())
+        self.assertIn('src="/dashboard-maya.webp"', index)
+
+    def test_btn_label_is_white_in_every_link_state(self):
+        css = (build.SRC / "style.css").read_text()
+        self.assertIn(".btn, a.btn:link, a.btn:visited, a.btn:hover, a.btn:focus, a.btn:active { color: #fff; }", css)
 
     def test_dashboard_step(self):
         self.add_dashboard()
