@@ -174,7 +174,7 @@ A list row may have fields that aren't in `columns`: each becomes an extra colum
 
 ## Files
 
-- `templates/blank.xlsx`: an empty lite sheet: all tabs and headers, the Settings keys with their meaning, and the People row in Collections. The skill copies its layout when it creates a new sheet.
+- `templates/blank.xlsx`: an empty lite sheet: all tabs and headers, the Settings keys with their meaning, and the People row in Collections. The skill doesn't use it: Drive's `create_file` makes a Google Sheet with only `Sheet1`, then the Google Sheets tool `update_spreadsheet` renames `Sheet1` to `Timelines` and adds the other tabs, and `update_values` writes the header rows and the data rows.
 - `examples/<name>/crm.xlsx`: the three example sheets, made from `examples/<name>/data.json`.
 
 ## Converter
