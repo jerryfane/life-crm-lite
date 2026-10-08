@@ -1,0 +1,41 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta http-equiv="Content-Security-Policy" content="@CSP">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>My life CRM</title>
+<link rel="icon" href="data:,">
+<!-- life-crm lite page: https://github.com/jerryfane/life-crm-lite (AGPL-3.0).
+     To update this page, replace ONLY the JSON inside the lite-data script just below. Leave everything else exactly as it is,
+     including the Content-Security-Policy line (it lets only this page's own code run). Inside the JSON, write every "<" as \u003c. -->
+<script type="application/json" id="lite-data">
+@DATA
+</script>
+<style>
+@CSS</style>
+</head>
+<body>
+<div id="lite"><div class="lc-err">This page couldn't start. If your AI made it, ask it to copy template.html again exactly, changing only the data block.</div></div>
+<script>
+@JS
+(function () {
+  // The page must hold exactly two scripts: the lite-data block and this one. Anything else means the page was
+  // changed outside its data block (for example a raw closing script tag inside the JSON), so refuse to draw.
+  var el = document.getElementById("lite"), me = document.currentScript;
+  function go() {
+    var all = document.scripts, block = document.getElementById("lite-data");
+    var ok = all.length === 2 && !!block && block.tagName === "SCRIPT" && block.type === "application/json" && document.querySelectorAll("[id='lite-data']").length === 1 &&
+      [].every.call(all, function (s) { return s === block || s === me; });
+    if (!ok) {
+      [].slice.call(document.body.childNodes).forEach(function (n) { if (n !== el) n.remove(); });
+      return LiteCRM.fail(el, "This page was changed outside its data block (an extra script or a second data block), so it isn't safe to show. Ask your AI to start again from template.html and replace only the JSON between the lite-data tags, writing every < as \\u003c.");
+    }
+    var r = LiteCRM.parse(block.textContent, true);
+    if (r.error) LiteCRM.fail(el, "The data block in this page has a problem. " + r.error); else LiteCRM.mount(el, r.data);
+  }
+  if (document.readyState === "loading") document.addEventListener("DOMContentLoaded", go); else go();
+})();
+</script>
+</body>
+</html>
