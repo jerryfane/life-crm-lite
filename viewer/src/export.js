@@ -58,10 +58,17 @@ var LiteExport = (function () {
     var areas = arr(d.areas), lists = arr(d.lists), people = arr(d.people), sheet = d.sheet && typeof d.sheet === "object" ? d.sheet : {}, names = {}, tn = tabNames(lists);
     areas.forEach(function (a) { names[v(a.id)] = a.name; });
     var settings = SETTINGS.map(function (s) {
-      var p = s[1].split("."), val = p[1] ? sheet[p[1]] : p[0] === "lite" && d.lite == null ? 1 : d[p[0]];
+      var p = s[1].split("."), val = p[1] ? sheet[p[1]] : p[0] === "lite" && !("lite" in d) ? 1 : d[p[0]];
       return [{ key: s[0], value: val, meaning: s[2] }, {}];
     });
-    Object.keys(d).forEach(function (k) { if (TOP_KEYS.indexOf(k) < 0) settings.push([{ key: k, value: v(d[k]) }, {}]); });
+    // extra fields: plain text under its own key; anything else JSON under "json:<key>", extra sheet fields under "json:sheet.<key>"
+    var known = SETTINGS.map(function (s) { return s[0]; });
+    Object.keys(d).forEach(function (k) {
+      if (TOP_KEYS.indexOf(k) >= 0) return;
+      var sk = k.trim().toLowerCase(), plain = typeof d[k] === "string" && k === k.trim() && known.indexOf(sk === "toneline" ? "tone_line" : sk) < 0 && sk.indexOf("json:") !== 0;
+      settings.push([plain ? { key: k, value: d[k] } : { key: "json:" + k, value: pj(d[k]) }, {}]);
+    });
+    if (!Array.isArray(d.sheet)) Object.keys(sheet).forEach(function (k) { if (k !== "url" && k !== "account") settings.push([{ key: "json:sheet." + k, value: pj(sheet[k]) }, {}]); });
     var out = [
       tab("Timelines", TIMELINES, areas.map(function (a, i) { return [{ id: a.id, name: a.name, color: a.color, goal: a.goal, description: a.why, show: "yes", order: i + 1 }, extras(a, AREA_KEYS)]; })),
       tab("Steps", STEPS, arr(d.steps).map(function (s) {
