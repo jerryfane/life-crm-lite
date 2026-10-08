@@ -527,11 +527,14 @@
       META.error ? h("span", { class: "src-err", title: META.error }, ` · couldn't read the sheet`) : null,
       h("button", { type: "button", class: "btn sm", disabled: loading, onclick: refresh }, loading ? "Refreshing…" : "Refresh"));
   }
+  // "Your sheet: <link> · Change" when the viewer connected one; Change forgets it and shows the Connect screen.
   function footer() {
-    const url = LITE.sheet && /^https:\/\//.test(LITE.sheet.url || "") ? LITE.sheet.url : "";
+    if (!sheet && META.source === "embedded") return h("div", { class: "foot" }, sourceLine(), h("span", {}, `Example: ${sheetName()}`));
+    const url = sheet && sheet.url || (LITE.sheet && LITE.sheet.url) || "";
+    const link = /^https:\/\//.test(url) ? h("a", { href: url, target: "_blank", rel: "noopener" }, sheetName()) : sheetName();
     return h("div", { class: "foot" }, sourceLine(),
-      h("span", {}, url ? h("a", { href: url, target: "_blank", rel: "noopener" }, "Your sheet in Drive ↗") : "Your sheet in Drive",
-        LITE.sheet && LITE.sheet.account ? ` · ${LITE.sheet.account}` : ""));
+      h("span", {}, "Your sheet: ", link, LITE.sheet && LITE.sheet.account ? ` (${LITE.sheet.account})` : "",
+        sheet && SRC.setSheet ? [" · ", h("button", { type: "button", class: "lnk", onclick: changeSheet }, "Change")] : null));
   }
   const todayText = () => `today is ${WEEKDAY[TODAY.getDay()]}, ${TODAY.getDate()} ${MONTH[TODAY.getMonth()]}`;
 
@@ -955,8 +958,59 @@
 
   // ---------- routing ----------
   let current = null, lastRoute = null;
+  // ---------- first run: connect a sheet; signed out: one calm message ----------
+  // gate: "" (the dashboard), "loading", "no_sheet" (Connect screen), "no_runtime" (sign in).
+  let gate = window.LiteSource ? "loading" : "", sheet = null;
+  const conn = { url: "", err: "", busy: false };
+  const sheetName = () => `${(LITE && LITE.owner || DATA && DATA.name || "").split(/\s+/)[0] || "Your"}'s life CRM`.replace(/^Your's/, "Your");
+  // the sheet id from a docs.google.com/spreadsheets/d/<id> link, or ""
+  const sheetId = (s) => ((/^\s*https:\/\/docs\.google\.com\/spreadsheets\/(?:u\/\d+\/)?d\/([\w-]{20,})(?:[/?#]\S*)?\s*$/.exec(s) || [])[1] || "");
+  async function connect(ev) {
+    ev.preventDefault();
+    if (conn.busy) return;
+    if (!sheetId(conn.url)) {
+      conn.err = "That isn't a link to a Google Sheet. Open your sheet, copy the address from the browser's address bar (it starts with https://docs.google.com/spreadsheets/d/) and paste it here.";
+      return render();
+    }
+    conn.busy = true; conn.err = ""; render();
+    let r;
+    try { r = await SRC.setSheet(conn.url.trim()); } catch (e) { r = { ok: false, error: String(e && e.message || e) }; }
+    if (r && r.ok) return refresh(true);
+    conn.busy = false; conn.err = (r && r.error) || "Couldn't save the link. Try again.";
+    render();
+  }
+  async function changeSheet() {
+    try { await SRC.setSheet(null); } catch (e) { /* the Connect screen comes next either way */ }
+    sheet = null; conn.url = ""; conn.err = ""; gate = "no_sheet"; route = "";
+    render();
+  }
+  function gateView() {
+    if (gate === "loading") return h("div", { class: "gate" }, h("p", { class: "gate-wait" }, "Loading your plan…"));
+    if (gate === "no_runtime") return h("div", { class: "gate" }, h("div", { class: "gate-card" },
+      h("h1", {}, "Sign in to see your plan"), h("p", {}, "Sign in to claude.ai in this browser, then reload this page.")));
+    return h("div", { class: "gate" }, h("form", { class: "gate-card", onsubmit: connect },
+      h("h1", {}, "Connect your life CRM"),
+      h("p", {}, "Your dashboard reads your plan from your own Google Sheet. Three steps, once:"),
+      h("ol", {},
+        h("li", {}, h("b", {}, "Be signed in to claude.ai"), " in this browser."),
+        h("li", {}, h("b", {}, "Turn on the Google Sheets connector"), " in claude.ai: Settings → Connectors."),
+        h("li", {}, h("b", {}, "Paste the link of your sheet"), " below. It's the sheet called “", h("i", {}, "your name"), "'s life CRM” in your Google Drive.")),
+      h("label", { for: "sheet-url" }, "Link to your sheet"),
+      h("div", { class: "gate-row" },
+        h("input", { id: "sheet-url", type: "url", inputmode: "url", autocomplete: "off", spellcheck: "false", value: conn.url,
+          placeholder: "https://docs.google.com/spreadsheets/d/…", oninput: (e) => { conn.url = e.target.value; } }),
+        h("button", { class: "btn dark", disabled: conn.busy }, conn.busy ? "Connecting…" : "Connect")),
+      conn.err ? h("p", { class: "gate-err", role: "alert" }, conn.err) : null));
+  }
+
   function render() {
     hideTip();
+    if (gate) {
+      shell.replaceChildren(gateView());
+      current = null; lastRoute = null;
+      document.title = gate === "no_sheet" ? "Connect your life CRM" : "My plan";
+      return;
+    }
     let key = "roadmap", title = "Overview", view;
     const t = route.match(/^t\/(.+)$/), p = route.match(/^p\/([\w-]+)$/);
     const tid = t && decodeURIComponent(t[1]);
@@ -978,14 +1032,24 @@
     lastRoute = key;
     document.title = key === "roadmap" ? DATA.title : `${title} · ${DATA.title}`;
   }
-  async function refresh() {
+  // afterConnect: a read that fails right after Connect goes back to the Connect screen with the reason.
+  async function refresh(afterConnect) {
     loading = true;
-    render();
+    if (!gate) render();
     let r;
     try { r = await SRC.load(); } catch (e) { r = { error: String(e && e.message || e) }; }
-    loading = false;
-    if (r && r.data && Array.isArray(r.data.areas)) setData(r.data, { source: r.source, at: r.at, error: r.error });
-    else META = { ...META, error: (r && r.error) || "no data" };
+    try { sheet = SRC.getSheet ? await SRC.getSheet() : null; } catch (e) { sheet = null; }
+    loading = false; conn.busy = false;
+    const err = r && r.error;
+    if (err === "no_runtime" || err === "no_sheet") gate = err;
+    else if (sheet && err && (!r.data || r.source === "embedded" || afterConnect === true)) {
+      // the sheet can't be read and there is no saved copy of it: never show the example as if it were theirs
+      gate = "no_sheet"; conn.url = sheet.url || conn.url; conn.err = err;
+    } else {
+      gate = "";
+      if (r && r.data && Array.isArray(r.data.areas)) setData(r.data, { source: r.source, at: r.at, error: err });
+      else META = { ...META, error: err || "no data" };
+    }
     render();
   }
   let lastW = window.innerWidth, rt = 0;

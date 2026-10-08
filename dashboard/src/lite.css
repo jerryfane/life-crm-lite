@@ -39,3 +39,20 @@
 .mx-f { margin: 6px 14px 0; font-size: 12.5px; color: var(--muted); }
 .mx .none { margin: 0; padding: 11px 14px; background: #fff; border-radius: 12px; color: var(--muted); font-size: 14px; }
 @media (max-width: 760px) { .mx { padding: 14px 10px; } .mx-g { grid-template-columns: minmax(0, 1fr); } }
+
+/* first run (Connect your life CRM) and signed-out screens: one centred card over the whole page */
+.gate { grid-column: 1 / -1; display: grid; place-items: center; min-height: 100vh; padding: 24px 16px; }
+.gate-card { width: 100%; max-width: 520px; background: #fff; border: 1px solid var(--line); border-radius: 16px; padding: 30px 30px 26px; box-shadow: 0 1px 2px rgba(17, 24, 39, .04); }
+.gate h1 { margin: 0 0 8px; font-size: 22px; letter-spacing: -.01em; }
+.gate p { margin: 0 0 14px; color: var(--muted); }
+.gate ol { margin: 0 0 20px; padding-left: 20px; }
+.gate li { margin: 0 0 8px; padding-left: 4px; }
+.gate label { display: block; margin-bottom: 6px; font-size: 13px; font-weight: 650; }
+.gate-row { display: flex; gap: 8px; }
+.gate input { flex: 1; min-width: 0; height: 40px; padding: 0 12px; border: 1px solid var(--line); border-radius: 9px; font: inherit; font-size: 14px; }
+.gate input:focus { outline: 2px solid #1f5f5b33; border-color: #1f5f5b; }
+.gate .btn { height: 40px; cursor: pointer; }
+.gate p.gate-err { margin: 12px 0 0; color: #b91c1c; font-size: 14px; }
+.gate-wait { color: var(--muted); }
+.lnk { border: 0; padding: 0; background: none; font: inherit; color: var(--muted); text-decoration: underline; cursor: pointer; }
+@media (max-width: 480px) { .gate-card { padding: 22px 18px 20px; } .gate-row { flex-direction: column; } .gate input { flex: none; } }
