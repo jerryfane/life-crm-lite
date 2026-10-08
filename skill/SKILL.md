@@ -88,9 +88,11 @@ Then: "Done: <folder link>. Your sheet (N areas, N steps, N lists, N people), a 
 
 ## 6. The dashboard
 
-Their own dashboard, made here from the Project file **dashboard.html** (can't see it: say so; their sheet is ready, Jerry helps).
+Their own dashboard.
 
-- Copy dashboard.html **exactly, every character**. Replace **only** the JSON inside `<script id="data" type="application/json">` with their data block (`sheet.url` = their sheet link, `sheet.account` = their email; every `<` as `\u003c`). Never shorten or rewrite anything else; never add a script tag.
+- Download it in your sandbox: `curl -sL https://raw.githubusercontent.com/jerryfane/life-crm-lite/main/dashboard/dist/dashboard.html -o d.html`. Check: over 100,000 bytes, starts with `<!doctype html>`. Then read d.html.
+- curl fails (no code execution, or network blocked): "Turn on Settings › Capabilities › **Code execution and file creation**, then retry." Still failing: "Download dashboard.html from https://life-crm-lite.jerryfane.com/dashboard/dashboard.html and attach it to this chat." Use that file.
+- Copy it **exactly, every character**. Replace **only** the JSON inside `<script id="data" type="application/json">` with their data block (`sheet.url` = their sheet link, `sheet.account` = their email; every `<` as `\u003c`). Never shorten or rewrite anything else; never add a script tag.
 - Show it as an HTML artifact published with exactly these capabilities (dashboard/CAPABILITIES.md): `{"sample":{},"db":{},"user":{},"mcp":{"servers":[{"server":"Google Sheets","tools":["get_values","update_values","get_spreadsheet"]}]}}`
 - Then: "This is your dashboard; it reads your sheet each time you open it. Click **Allow** when asked."
 - Ask what they see: name, timeline, matrix. A banner "wasn't copied exactly" means your copy slipped: copy it again, exactly.

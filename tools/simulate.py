@@ -57,7 +57,7 @@ HARNESS_FULL = f"""
 ---
 SIMULATION NOTE (from the test harness, not from the person): today is {TODAY}. You have no real
 tools in this simulation. Act as if the Google Drive and Google Sheets connectors are on and
-connected to the account {{account}}, and as if the Project file dashboard.html is here. Write
+connected to the account {{account}}, and as if your sandbox's curl downloaded dashboard.html as step 6 says. Write
 markers instead of tool calls, in the message where you would do it:
 "[FOLDER: <folder name>; subfolders: <name>, <name>, …]" once you created the folder and
 subfolders (Google Drive's create_file is allowed and works);
