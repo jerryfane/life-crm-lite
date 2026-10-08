@@ -29,7 +29,10 @@ var LiteExport = (function () {
   }
   function v(x) { return x == null ? "" : typeof x === "object" ? pj(x) : String(x); }
   function arr(x) { return Array.isArray(x) ? x.filter(function (o) { return o && typeof o === "object"; }) : []; }
-  function hk(c) { return v(c).split("(")[0].trim().toLowerCase().replace(/\s+/g, "_"); }
+  // header_key in tools/convert.py: Python's whitespace (str.isspace), strip, lower, runs of whitespace -> "_"
+  var WS = "\\t\\n\\x0b\\x0c\\r\\x1c-\\x20\\x85\\xa0\\u1680\\u2000-\\u200a\\u2028\\u2029\\u202f\\u205f\\u3000";
+  var WS_ENDS = new RegExp("^[" + WS + "]+|[" + WS + "]+$", "g"), WS_RUN = new RegExp("[" + WS + "]+", "g");
+  function hk(c) { return v(c).split("(")[0].replace(WS_ENDS, "").toLowerCase().replace(WS_RUN, "_"); }
   function has(o, k) { return Object.prototype.hasOwnProperty.call(o, k); }
   // null-prototype objects, so keys such as "__proto__" or "constructor" are plain keys
   function extras(o, known) { var e = Object.create(null); Object.keys(o).forEach(function (k) { if (known.indexOf(k) < 0) e[k] = o[k]; }); return e; }
@@ -145,23 +148,68 @@ var LiteExport = (function () {
     t.forEach(function (s, i) { files.push(["xl/worksheets/sheet" + (i + 1) + ".xml", sheet(s.rows)]); });
     return zip(files);
   }
-  // Names in one list that would land in the same sheet column, so one would overwrite the other
-  // (same rule and wording as key_collisions in tools/convert.py). The viewer won't export until they're renamed.
-  function problems(d) {
-    var out = [];
-    arr(d.lists).forEach(function (l) {
-      var cols = Array.isArray(l.columns) ? l.columns.map(v) : [], names = new Map(), pre = "list " + v(l.id) + ": ";
-      cols.concat.apply(cols, arr(l.rows).map(Object.keys)).forEach(function (n) {
-        var k = hk(n); if (!names.has(k)) names.set(k, []);
-        if (names.get(k).indexOf(n) < 0) names.get(k).push(n);
-      });
-      (names.get("") || []).forEach(function (n) { if (cols.indexOf(n) < 0) out.push(pre + "row key '" + n + "' is empty as a sheet header"); });
-      names.forEach(function (same, k) {
-        if (k && same.length > 1) out.push(pre + same.map(function (n) { return "'" + n + "'"; }).join(", ") + " would share one sheet column ('" + k + "'); rename them so they differ in more than case, spaces or anything in brackets");
-      });
-      cols.filter(function (c, i) { return cols.indexOf(c) === i && cols.lastIndexOf(c) !== i; }).forEach(function (c) { out.push(pre + "column '" + c + "' is listed twice"); });
+  // Columns an extra field may fill when it has exactly that column's name (OPEN_COLS in tools/convert.py)
+  var OPEN = { Timelines: ["group", "link", "show", "order"], Steps: ["track", "kind", "progress", "phase", "pin", "show"],
+    Collections: ["layout", "status_field", "statuses", "date_field", "group", "icon", "description", "empty_text", "show", "order"], People: [] };
+  // Python's str() and repr(), so messages read exactly like convert.py's
+  function pystr(x) {
+    if (x == null) return "None";
+    if (typeof x === "boolean") return x ? "True" : "False";
+    if (Array.isArray(x)) return "[" + x.map(pyval).join(", ") + "]";
+    if (typeof x === "object") return "{" + Object.keys(x).map(function (k) { return pyrepr(k) + ": " + pyval(x[k]); }).join(", ") + "}";
+    return String(x);
+  }
+  function pyval(x) { return typeof x === "string" ? pyrepr(x) : pystr(x); }
+  function pyrepr(s) {
+    var q = s.indexOf("'") >= 0 && s.indexOf('"') < 0 ? '"' : "'";
+    // like str.isprintable: control, format, unassigned, private-use, surrogate and separator characters (but the space) are escaped
+    return q + s.replace(/\\|(?! )[\p{C}\p{Z}]/gu, function (c) {
+      var n = c.codePointAt(0), h = n.toString(16);
+      return { "\\": "\\\\", "\n": "\\n", "\r": "\\r", "\t": "\\t" }[c] || (n < 256 ? "\\x" + ("0" + h).slice(-2) : n < 65536 ? "\\u" + ("000" + h).slice(-4) : "\\U" + ("0000000" + h).slice(-8));
+    }).split(q).join("\\" + q) + q;
+  }
+  function shares(same, k) { return same.map(pyrepr).join(", ") + " would share one sheet column ('" + k + "'); rename them so they differ in more than case, spaces or anything in brackets"; }
+  // Column names and row keys of one list that become the same sheet column (key_collisions)
+  function keyCollisions(cols, rows) {
+    var names = new Map(), out = [];
+    cols.concat.apply(cols, rows.map(Object.keys)).forEach(function (n) {
+      var k = hk(n); if (!names.has(k)) names.set(k, []);
+      if (names.get(k).indexOf(n) < 0) names.get(k).push(n);
     });
+    (names.get("") || []).forEach(function (n) { if (cols.indexOf(n) < 0) out.push("row key " + pyrepr(n) + " is empty as a sheet header"); });
+    names.forEach(function (same, k) { if (k && same.length > 1) out.push(shares(same, k)); });
+    cols.filter(function (c, i) { return cols.indexOf(c) === i && cols.lastIndexOf(c) !== i; }).forEach(function (c) { out.push("column " + pyrepr(c) + " is listed twice"); });
     return out;
+  }
+  // Extra fields of areas, steps, lists or people that would land in a column already in use (field_collisions)
+  function fieldCollisions(label, objects, known, cols, open) {
+    var byKey = new Map(), names = new Map(), out = [];
+    cols.forEach(function (c) { byKey.set(hk(c), c); });
+    objects.forEach(function (o) {
+      Object.keys(o[1]).forEach(function (k) {
+        if (known.indexOf(k) >= 0) return;
+        var key = hk(k), col = byKey.get(key);
+        if (!key) out.push(o[0] + ": field " + pyrepr(k) + " is empty as a sheet header");
+        else if (col !== undefined && !(k === col && open.indexOf(col) >= 0)) out.push(o[0] + ": field " + pyrepr(k) + " would share the sheet column '" + col + "'; " +
+          (open.indexOf(col) >= 0 ? "write it as '" + col + "' or rename it" : "that column already holds another value, so rename it"));
+        else if (col === undefined) { if (!names.has(key)) names.set(key, []); if (names.get(key).indexOf(k) < 0) names.get(key).push(k); }
+      });
+    });
+    names.forEach(function (same, k) { if (same.length > 1) out.push(label + ": " + shares(same, k)); });
+    return out;
+  }
+  // Everything that would make the sheet lose data; same rules, order and wording as validate() in tools/convert.py.
+  // The viewer won't export until these are renamed.
+  function problems(d) {
+    var out = [], lists = arr(d.lists);
+    lists.forEach(function (l) {
+      keyCollisions(Array.isArray(l.columns) ? l.columns.map(v) : [], arr(l.rows)).forEach(function (m) { out.push("list " + pystr(l.id) + ": " + m); });
+    });
+    return out.concat(
+      fieldCollisions("areas", arr(d.areas).map(function (a) { return ["area " + pystr(a.id), a]; }), AREA_KEYS, TIMELINES, OPEN.Timelines),
+      fieldCollisions("steps", arr(d.steps).map(function (s) { return ["step " + pystr(s.id) + " '" + pystr(s.title) + "'", s]; }), STEP_KEYS, STEPS, OPEN.Steps),
+      fieldCollisions("lists", lists.map(function (l) { return ["list " + pystr(l.id), l]; }), LIST_KEYS, COLLECTIONS, OPEN.Collections),
+      fieldCollisions("people", arr(d.people).map(function (p) { return ["person " + pystr(p.name), p]; }), PEOPLE, PEOPLE, OPEN.People));
   }
   return { xlsx: xlsx, tabs: tabs, problems: problems };
 })();
