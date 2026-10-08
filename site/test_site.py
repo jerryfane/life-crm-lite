@@ -107,11 +107,14 @@ class Build(unittest.TestCase):
         self.add_dashboard()
         out, _ = self.run_build()
         index = (out / "index.html").read_text()
-        self.assertEqual(index.count('download="dashboard.html"'), 2)  # Project files step and dashboard step
-        self.assertIn("then add the dashboard file to it", index)
-        self.assertIn("makes your own dashboard", index)
+        self.assertIn("Claude downloads the dashboard and makes your own", index)
         self.assertIn("ask Claude to change it", index)
-        for gone in ("Link coming Saturday", "Open the dashboard</a>", "public/artifacts", "Sign in to <b>claude.ai</b>"):
+        self.assertIn("Code execution and file creation", index)
+        # Only the small fallback link: no Project-file step, no big download button.
+        self.assertEqual(index.count('download="dashboard.html"'), 1)
+        self.assertIn('If Claude can’t download it: <a href="/dashboard/dashboard.html" download="dashboard.html">dashboard.html</a>, attach it to the chat.', index)
+        for gone in ("Download dashboard.html", "Project’s files", "next to Files", "then add the dashboard file",
+                     "Link coming Saturday", "public/artifacts"):
             self.assertNotIn(gone, index)
         self.assertEqual((out / "dashboard" / "dashboard.html").read_text(),
                          (self.tmp / "dashboard" / "dist" / "dashboard.html").read_text())
@@ -122,7 +125,6 @@ class Build(unittest.TestCase):
         index = (out / "index.html").read_text()
         self.assertNotIn("dashboard.html", index)
         self.assertNotIn("dash-steps", index)
-        self.assertNotIn("then add the dashboard file to it", index)
 
     def test_dashboard_without_sheet_flow_refused(self):
         self.add_dashboard(sheet_flow=False)

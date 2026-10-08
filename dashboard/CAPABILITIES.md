@@ -25,7 +25,7 @@ result's `payload`.
 
 ## Viewers
 
-- Each person's Claude publishes their own dashboard from `dashboard.html` (`skill/SKILL.md`, step 6). They open it
+- Each person's Claude downloads `dashboard.html` and publishes their own dashboard from it (`skill/SKILL.md`, step 6). They open it
   **signed in to claude.ai** in that browser. Signed out, every capability is
   null and the page says "Sign in to claude.ai in this browser, then reload."
 - Each viewer needs the **Google Sheets** connector connected in claude.ai (Customize > Connectors). The page says

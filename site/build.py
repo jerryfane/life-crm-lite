@@ -11,7 +11,7 @@ Required:
 Optional inputs (the build works without each one and shows "coming soon"):
     skill/SKILL.md       the skill: copied by the big button, shown at /skill/, raw at /SKILL.md
     dashboard/dist/dashboard.html   the dashboard: a preview at /dashboard/ (example data without Claude), and
-                                    the download at /dashboard/dashboard.html that each person adds to their Project
+                                    /dashboard/dashboard.html, the fallback download when Claude can't fetch it
     viewer/              the viewer: copied to /viewer/
     examples/<name>/     transcript.md (shown at /examples/<name>/), data.json, crm.xlsx;
                          <name> must match [a-z0-9-]+, other folders are skipped with a warning
@@ -236,25 +236,21 @@ def example_cards(examples: list[tuple[str, str, str, list[str]]]) -> str:
     return "".join(cards)
 
 
-def dashboard_step(has_dashboard: bool, has_sheet_flow: bool) -> dict[str, str]:
-    """The room page's dashboard step: add dashboard.html to the Project; Claude makes each person's own dashboard.
-    Left out entirely when there is no dashboard to download."""
+def dashboard_step(has_dashboard: bool, has_sheet_flow: bool) -> str:
+    """The room page's dashboard step: Claude downloads the dashboard and makes each person's own.
+    The download link is only the fallback for when Claude can't fetch it. Left out when there is no dashboard."""
     if not has_dashboard:
-        return {"DASHBOARD_START": "", "DASHBOARD_FILE": "", "DASHBOARD_STEP": ""}
+        return ""
     if not has_sheet_flow:
         sys.exit("dashboard/dist/dashboard.html has no sheet-link flow (setSheet); "
                  "without it the room page would promise something the dashboard can't do.")
-    download = '<a class="btn" href="/dashboard/dashboard.html" download="dashboard.html">Download dashboard.html</a>'
-    step = ('<div class="setup"><div class="panel"><ol class="dash-steps">'
-            '<li>Add <b>dashboard.html</b> to your Project’s files (see <a href="#drive">Make the Project</a>).</li>'
-            '<li>At the end of the setup, Claude makes your own dashboard from it, connected to your sheet.</li>'
+    return ('<div class="setup"><div class="panel"><ol class="dash-steps">'
+            '<li>At the end of the setup, Claude downloads the dashboard and makes your own, connected to your sheet.</li>'
             '<li>Open it from the Project any time. Click <b>Refresh</b> after Claude updates your sheet.</li>'
             '<li>It’s yours: ask Claude to change it, like a chart, other colours or a new section.</li></ol>'
-            f'<div class="cta">{download}</div></div></div>')
-    return {"DASHBOARD_START": ", then add the dashboard file to it",
-            "DASHBOARD_FILE": ('<li>Download the dashboard file. In the Project, click <b>+</b> next to Files and upload it. '
-                               f'Keep its name: <b>dashboard.html</b>.<p class="dl">{download}</p></li>'),
-            "DASHBOARD_STEP": step}
+            '<p class="fine">If Claude can’t download it: '
+            '<a href="/dashboard/dashboard.html" download="dashboard.html">dashboard.html</a>, attach it to the chat.</p>'
+            '</div></div>')
 
 
 def build(out: Path, root: Path = ROOT) -> None:
@@ -340,7 +336,7 @@ def build(out: Path, root: Path = ROOT) -> None:
         # The parser drops one newline right after <textarea>, so keep the skill's first line intact.
         "SKILL_TEXT": "\n" + html.escape(skill),
         "EXAMPLES": example_cards(found),
-        **dashboard_step(has_dashboard, has_sheet_flow),
+        "DASHBOARD_STEP": dashboard_step(has_dashboard, has_sheet_flow),
         "SITE_URL": attr(SITE_URL),
     }, "site/src/index.html")
     (out / "index.html").write_text(index)
