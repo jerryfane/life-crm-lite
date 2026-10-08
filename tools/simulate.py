@@ -10,13 +10,15 @@ One model plays the assistant with SKILL.md as its instructions. A second model 
 person: it answers from examples/<name>/transcript.md (the dictation, the assumed follow-up
 answers, the Google account) and also labels each assistant message (plan question, talk
 prompt, follow-up, matrix check, Drive check, done). There are no real tool calls: the
-assistant is told that Drive is connected and writes the data block it would save.
+assistant is told that the Google Drive and Google Sheets connectors are on, and writes markers
+for the folder, the sheet (with the data block it would save), GUIDE.md and the dashboard.
 
 Checks per case: number of follow-up questions (3-6), one question per message, options
 present, the data block valid (`tools/convert.py check`), matrix placement against the
-example's data.json, for paid plans that the page follows the sheet (a run without it is
-invalid), and, for ChatGPT Free, the reduced path. Tokens are summed per case. Each case's
-result.json and summary.md are written as soon as the case finishes.
+example's data.json, the folder plan (folder name, one subfolder per area), GUIDE.md saved, and
+that the dashboard step is reached (a Pro run without it is invalid). For a plan other than
+Pro/Max: the "needs Claude Pro or Max" message, the viewer link, and no setup. Tokens are summed
+per case. Each case's result.json and summary.md are written as soon as the case finishes.
 
 The API goes through the local keyring relay (no key in this file). Python 3.10+, openpyxl.
 """
@@ -39,13 +41,15 @@ USER_MODEL = "gpt-5.3-codex"
 TODAY = "2026-10-11"
 MAX_TURNS = 16
 DEFAULT_OUT = Path("/root/fleet-tools/state/life-crm-lite/skill")
-PAGE_RE = re.compile(r"\[PAGE\b|id=\"lite-data\"|<!doctype html", re.I)
+DASH_RE = re.compile(r"\[DASHBOARD\b|DASHBOARD_LINK|claude\.ai/public/artifacts|<script id=\"data\"|<!doctype html", re.I)
+FOLDER_RE = re.compile(r"\[FOLDER:\s*([^\]]*)\]")
+PRO_PLANS = ("Claude Pro", "Claude Max")
 
 CASES = {
     "maya-claude-pro": ("maya", "Claude Pro"),
     "elena-claude-pro": ("elena", "Claude Pro"),
     "daniel-claude-pro": ("daniel", "Claude Pro"),
-    "elena-chatgpt-free": ("elena", "ChatGPT Free"),
+    "elena-claude-free": ("elena", "Claude Free"),
 }
 
 HARNESS_FULL = f"""
@@ -53,19 +57,19 @@ HARNESS_FULL = f"""
 ---
 SIMULATION NOTE (from the test harness, not from the person): today is {TODAY}. You have no real
 tools in this simulation. Act as if the Google Drive and Google Sheets connectors are on and
-connected to the account {{account}}, and as if the file template.html is in this Project.
-When you would create the Google Sheet, write instead, in that message, the data block holding
-exactly what you would write to the sheet, in one ```json code block, and then
-"[SHEET SAVED: <Name>'s life CRM]". When you would show the page, write
-"[PAGE: template.html with the data block]" instead of the HTML. Everything else as the
+connected to the account {{account}}, and as if the Project files GUIDE.md and dashboard.html are
+here. Write markers instead of tool calls, in the message where you would do it:
+"[FOLDER: <folder name>; subfolders: <name>, <name>, …]" once the folder and subfolders exist
+(made by you or by the person following your clicks); the Google Drive connector has only
+share_file, trash_file and update_file;
+the data block holding exactly what you would write to the sheet, in one ```json code block, then
+"[SHEET SAVED: <sheet name>]"; "[GUIDE SAVED]" when you save GUIDE.md. For the dashboard step,
+write the message you'd send, and if you would make the artifact yourself, write
+"[DASHBOARD: dashboard.html with the data block]" instead of the HTML. Treat every tool call as
+successful: use https://drive.google.com/drive/folders/SIM and
+https://docs.google.com/spreadsheets/d/SIM as the folder and sheet links, and
+https://claude.ai/public/artifacts/SIM as the published dashboard link. Everything else as the
 instructions say.
-"""
-
-HARNESS_FREE = f"""
-
----
-SIMULATION NOTE (from the test harness, not from the person): today is {TODAY}. You have no
-tools in this simulation (no Google Drive, no files). Everything else as the instructions say.
 """
 
 USER_PROMPT = """You play {name} in a test of a chat assistant. You are not a developer.
@@ -82,7 +86,7 @@ Your answers to likely follow-up questions (use these facts; the wording of the 
 >>>
 
 Each turn you get the assistant's latest message. Reply as {name} would, briefly, in plain words.
-- Plan question: answer "{plan}".
+- Plan question: answer "{plan}". If told the setup needs another plan, say "Okay, thanks."
 - Asked to talk / dictate: reply with the single word DICTATION (the harness pastes your dictation).
 - Follow-up questions: answer from your facts above. If your facts don't cover it, pick the option
   that best fits what you said, or say you're not sure. Never invent new people or dates.
@@ -91,10 +95,10 @@ Each turn you get the assistant's latest message. Reply as {name} would, briefly
   what you said (then say what to move).
 - Asked to click something or connect something: say it's done.
 Also label the assistant's message:
-- kind: "plan" (asks which AI/plan), "talk" (asks you to talk/dictate), "followup" (a question about
+- kind: "plan" (asks which plan), "talk" (asks you to talk/dictate), "followup" (a question about
   your areas or steps, including the tone question), "matrix" (shows the four boxes and asks to
-  confirm), "drive" (Google Drive / account step), "done" (gives the result: sheet saved, data block,
-  page or viewer, and asks nothing essential), "other".
+  confirm), "drive" (connectors / Google account / folder step), "done" (gives a result: folder,
+  sheet, dashboard, or a message that your plan can't do it, and asks nothing essential), "other".
 - questions: how many separate questions it asks you to answer (0 if none).
 - options: true if it offers numbered or listed choices to pick from.
 Return only JSON: {{"kind": ..., "questions": n, "options": true/false, "reply": "..."}}"""
@@ -238,15 +242,15 @@ def validate(data: dict, path: Path) -> list[str]:
 def run_case(case: str, out: Path) -> dict:
     name, plan = CASES[case]
     c = load_case(name)
-    free = plan == "ChatGPT Free"
+    pro = plan in PRO_PLANS
     skill = (ROOT / "skill" / "SKILL.md").read_text()
-    instructions = skill + (HARNESS_FREE if free else HARNESS_FULL.replace("{account}", c["account"]))
+    instructions = skill + HARNESS_FULL.replace("{account}", c["account"])
     user_instr = USER_PROMPT.format(name=c["name"], plan=plan, account=c["account"], dictation=c["dictation"],
                                     answers=c["answers"],
-                                    drive_note="" if free else "; Google Drive is already connected")
+                                    drive_note="; Google Drive and Google Sheets are already connected")
     usage: dict = {}
     convo = [{"role": "user", "content": "Hi! Let's set up my life CRM."}]
-    log, data, data_at, page_at = [], None, None, None
+    log, data, data_at, dash_at = [], None, None, None
     for _ in range(MAX_TURNS):
         a = call(ASSISTANT_MODEL, instructions, convo, usage)
         convo.append({"role": "assistant", "content": a})
@@ -262,12 +266,12 @@ def run_case(case: str, out: Path) -> dict:
         if blocks:
             data = blocks[-1]
             data_at = data_at or len(log)
-        if not free and PAGE_RE.search(a):
-            page_at = page_at or len(log)
-        # Paid plans: go on past the sheet until the page turn (or give up 3 turns after the data block).
-        if not free and (page_at or (data_at and len(log) >= data_at + 3)):
+        if pro and DASH_RE.search(a):
+            dash_at = dash_at or len(log)
+        # Pro: go on past the sheet until the dashboard step (or give up 3 turns after the data block).
+        if pro and (dash_at or (data_at and len(log) >= data_at + 3)):
             break
-        if free and data_at and ("save as google sheets" in a.lower() or len(log) >= data_at + 4):
+        if not pro and ("viewer" in a.lower() or len(log) >= 3):
             break
         reply = c["dictation"] if lab.get("kind") == "talk" or "DICTATION" in str(lab.get("reply")) else lab.get("reply", "Okay.")
         entry["user"] = reply
@@ -283,18 +287,20 @@ def run_case(case: str, out: Path) -> dict:
            "followup_texts": [e["assistant"].strip() for e in followups],
            "matrix_confirmed": "matrix" in kinds, "usage": usage}
     full = "\n\n".join(e["assistant"] for e in log)
-    if free:
-        first = " ".join(e["assistant"] for e in log[:2]).lower()
-        res["free_path"] = {
-            "notice": "reduced version" in first and "full experience needs a paid plan" in first,
+    if not pro:
+        res["other_plan"] = {
+            "needs_pro_message": "needs claude pro or max" in full.lower(),
             "viewer_link": "life-crm-lite.jerryfane.com/viewer" in full,
-            "upload_steps": "file upload" in full.lower() and "save as google sheets" in full.lower(),
-            "no_drive_connect": not re.search(r"connectors|plugins|connect google drive", full.lower()),
+            "no_setup": data is None and not FOLDER_RE.search(full),
         }
     else:
+        folder = FOLDER_RE.search(full)
+        res["folder_plan"] = folder.group(1).strip() if folder else None
         res["drive_step"] = "drive" in kinds
         res["account_confirmed"] = c["account"] in full
-        res["page_shown"] = page_at is not None
+        res["guide_saved"] = "[GUIDE SAVED]" in full
+        res["dashboard_reached"] = dash_at is not None
+        res["dashboard_message"] = log[dash_at - 1]["assistant"].strip() if dash_at else None
     case_dir = out / case
     case_dir.mkdir(parents=True, exist_ok=True)
     res["skill_words"] = len(skill.split())
@@ -307,9 +313,12 @@ def run_case(case: str, out: Path) -> dict:
         res["data_block"] = "present"
         res["data_valid"] = not res["problems"]
         res["compare"] = compare(data, c["expected"])
-    if not free and not res["page_shown"]:
-        res["problems"].append("no page or template output after the sheet")
-    res["valid"] = res["data_valid"] and (free or res["page_shown"])
+    if pro and not res["dashboard_reached"]:
+        res["problems"].append("dashboard step not reached after the sheet")
+    if pro:
+        res["valid"] = res["data_valid"] and res["dashboard_reached"]
+    else:
+        res["valid"] = all(res["other_plan"].values())
     (case_dir / "result.json").write_text(json.dumps(res, ensure_ascii=False, indent=2) + "\n")
     md = [f"# {case}\n"]
     md.append(f"**User:** {convo[0]['content']}\n")
@@ -343,11 +352,13 @@ def summary(results: list[dict], words: int) -> str:
                      f"matrix confirmed in one question: {r['matrix_confirmed']}")
         lines.append(f"- data block: {r['data_block']}, data valid: {r.get('data_valid', r['valid'])}; "
                      f"run valid: {r['valid']}" + (f" ({'; '.join(r['problems'])})" if r.get("problems") else ""))
-        if "free_path" in r:
-            lines.append(f"- reduced path: {r['free_path']}")
+        if "other_plan" in r:
+            lines.append(f"- other plan: {r['other_plan']}")
         else:
             lines.append(f"- Drive step: {r['drive_step']}, account named: {r['account_confirmed']}, "
-                         f"page shown: {r.get('page_shown', 'not checked')}")
+                         f"GUIDE.md saved: {r.get('guide_saved')}, "
+                         f"dashboard step reached: {r.get('dashboard_reached', 'not checked')}")
+            lines.append(f"- folder plan: {r.get('folder_plan')}")
         if "compare" in r:
             cmp = r["compare"]
             lines.append(f"- got/expected: areas {cmp['areas']}, steps {cmp['steps']}, lists {cmp['lists']}, "
