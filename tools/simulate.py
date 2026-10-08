@@ -57,11 +57,10 @@ HARNESS_FULL = f"""
 ---
 SIMULATION NOTE (from the test harness, not from the person): today is {TODAY}. You have no real
 tools in this simulation. Act as if the Google Drive and Google Sheets connectors are on and
-connected to the account {{account}}, and as if the Project files GUIDE.md and dashboard.html are
-here. Write markers instead of tool calls, in the message where you would do it:
-"[FOLDER: <folder name>; subfolders: <name>, <name>, …]" once the folder and subfolders exist
-(made by you or by the person following your clicks); the Google Drive connector has only
-share_file, trash_file and update_file;
+connected to the account {{account}}, and as if the Project file dashboard.html is here. Write
+markers instead of tool calls, in the message where you would do it:
+"[FOLDER: <folder name>; subfolders: <name>, <name>, …]" once you created the folder and
+subfolders (Google Drive's create_file is allowed and works);
 the data block holding exactly what you would write to the sheet, in one ```json code block, then
 "[SHEET SAVED: <sheet name>]"; "[GUIDE SAVED]" when you save GUIDE.md. For the dashboard step,
 write the message you'd send, and if you would make the artifact yourself, write
