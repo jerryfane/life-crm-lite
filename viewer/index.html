@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
 <meta charset="utf-8">
-<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'sha256-fy7MQlihqWjIE5ipdESjVKnIO3mQC4N40iXUH/zYsyk='; style-src 'unsafe-inline'; img-src data:; base-uri 'none'; form-action 'none'">
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'sha256-mar4PI6HB9HDmh5qFC5LYeoCoIBOMZ1gCz2ZaGR8ixk='; style-src 'unsafe-inline'; img-src data:; base-uri 'none'; form-action 'none'">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>life-crm lite viewer</title>
 <link rel="icon" href="data:,">
@@ -534,7 +534,9 @@ return { xlsx: xlsx, tabs: tabs, problems: problems };
   var KEY = "lifecrm-lite.data", data = null, $ = function (id) { return document.getElementById(id); }, out = $("lite");
   var store = {
     get: function () { try { return localStorage.getItem(KEY); } catch (e) { return null; } },
-    set: function (v) { try { v == null ? localStorage.removeItem(KEY) : localStorage.setItem(KEY, v); return true; } catch (e) { return false; } }
+    set: function (v) { try { v == null ? localStorage.removeItem(KEY) : localStorage.setItem(KEY, v); return true; } catch (e) { return false; } },
+    // gone only if a read works and finds nothing; a read that fails proves nothing
+    gone: function () { try { return localStorage.getItem(KEY) === null; } catch (e) { return false; } }
   };
   function mode(showing) { $("vpaste").hidden = showing; $("vbar").hidden = !showing; $("verr").hidden = true; $("vmsg").hidden = true; $("vcancel").hidden = !data; }
   function show(d, save) {
@@ -570,8 +572,7 @@ return { xlsx: xlsx, tabs: tabs, problems: problems };
   $("vclear").onclick = function () {
     if (!confirm("Remove your data from this browser? Download your page first if you want to keep it.")) return;
     store.set(null);
-    // only say it's gone once the saved copy really is
-    if (store.get() !== null) return say("Couldn't clear the saved copy on this laptop. Clear your browser's site data to remove it.");
+    if (!store.gone()) return say("Couldn't clear the saved copy on this laptop. Clear your browser's site data to remove it.");
     data = null; LiteCRM.fail(out, ""); out.innerHTML = ""; $("vin").value = ""; mode(false);
   };
   $("vdown").onclick = function () {
