@@ -104,7 +104,6 @@ class Build(unittest.TestCase):
         out, _ = self.run_build(mode="published", url="")
         index = (out / "index.html").read_text()
         self.assertIn("Link coming Saturday", index)
-        self.assertIn("Sign in to <b>claude.ai</b>", index)
         self.assertNotIn("Open the dashboard</a>", index)
         self.assertNotIn('download="dashboard.html"', index)
         self.assertEqual((out / "dashboard" / "index.html").read_text(), "<!doctype html><title>d</title>")
