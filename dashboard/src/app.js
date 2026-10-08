@@ -1070,4 +1070,11 @@
   // First paint from the embedded block, then the live sheet replaces it.
   setData(EMBEDDED, { source: "embedded", at: "" });
   refresh();
+  // A copy retyped with a changed or missing character (copy mode): one calm banner above everything; the page still runs.
+  if (typeof LiteCheck !== "undefined") LiteCheck.check(document, window.crypto && crypto.subtle).then((ok) => {
+    if (ok !== false) return;
+    document.body.prepend(h("div", { class: "copycheck", role: "alert" },
+      "This dashboard wasn't copied exactly, so parts may not work. In your Project chat, say: ",
+      h("b", {}, "“Copy dashboard.html again exactly, every character.”")));
+  });
 })();
