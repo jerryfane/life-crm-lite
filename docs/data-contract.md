@@ -1,0 +1,46 @@
+# life-crm lite: shared data contract (v1)
+
+Every part reads and writes the same **data block**: one JSON object. The skill outputs it, the page template embeds it, the viewer pastes it, and the converter turns it into the life-crm sheet and back. The sheet in the user's Drive is the source of truth; this block is the page's copy of it.
+
+```json
+{
+  "lite": 1,
+  "title": "Maya's plan",
+  "owner": "Maya",
+  "updated": "2026-10-11",
+  "tone": "kick | caring | motivational | none",
+  "toneLine": "One line in the chosen tone, or empty for none",
+  "sheet": { "url": "https://docs.google.com/spreadsheets/d/...", "account": "maya@example.com" },
+  "areas": [
+    { "id": "school", "name": "Medical school", "color": "teal", "goal": "M.D. by May 2027", "why": "optional" }
+  ],
+  "steps": [
+    {
+      "id": "s1", "area": "school", "title": "Submit residency applications",
+      "status": "todo | doing | waiting | stuck | done",
+      "owner": "me | a person's name",
+      "date": "2027-09-15",
+      "start": null, "end": null,
+      "repeat": "every 2 weeks | weekly | monthly | null",
+      "importance": "high | low",
+      "urgency": "high | low",
+      "notes": "", "link": ""
+    }
+  ],
+  "lists": [
+    { "id": "programs", "name": "Programs", "area": "career", "columns": ["program", "country", "deadline", "status"], "rows": [ { "program": "Riverside", "country": "USA", "deadline": "2027-09-30", "status": "shortlisted" } ] }
+  ],
+  "people": [ { "name": "Dr. Navarro", "role": "letter of recommendation", "area": "career", "contact": "" } ]
+}
+```
+
+Rules:
+- Dates are ISO `YYYY-MM-DD`; a month-only date is `YYYY-MM`, and the first of the month is assumed, as in life-crm `dashboard.py`. A step has either `date` (a milestone or deadline), or `start` + `end` (a period), or neither.
+- `repeat` is free text in a short form ("every 2 weeks"); the page shows it as written and computes the next occurrence only for the supported forms: `daily`, `weekly`, `every N days`, `every N weeks`, `monthly`, `every N months`. For a repeating step, `date` is the next due date.
+- Matrix: importance high + urgency high → **Do now**; importance high + urgency low → **Schedule**; importance low + urgency high → **Delegate**; importance low + urgency low → **Drop**. Done steps aren't placed in the matrix.
+- `color` is one of life-crm's colours: teal, indigo, amber, blue, pink, green, violet, red, orange, gray.
+- `owner` "me" is the user; any other value means waiting on that person.
+- Unknown fields are kept and ignored, so later versions can add fields.
+- No secrets or tokens, ever. `sheet.account` is the email of the Google account in use, shown so the user can confirm it.
+
+Mapping to life-crm sheet tabs (owned by the sheet-format work, issue #3): `areas` → Timelines, `steps` → Steps (+ extra columns `importance`, `urgency`, `repeat`), `lists` → Collections + one tab per list, `people` → a People list, `title`/`owner`/`tone` → Settings/Profile.
