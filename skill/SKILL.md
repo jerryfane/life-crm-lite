@@ -88,30 +88,14 @@ Then: "Done: <folder link>. Your sheet (N areas, N steps, N lists, N people), a 
 
 ## 6. The dashboard
 
-DASHBOARD_MODE: published
-
-Follow only the section matching DASHBOARD_MODE.
-
-### If DASHBOARD_MODE is published
-
-Link: DASHBOARD_LINK (Jerry fills it in). It reads only the opener's own sheet.
-
-1. "Open your dashboard in the browser where you're **signed in to claude.ai**: <the link>. Bookmark it." (Signed out, it shows "Sign in to claude.ai in this browser, then reload".)
-2. "It asks for your sheet: paste <sheet link>. It remembers it. Click **Allow** when it asks to use Google Sheets or Claude."
-3. Ask them to tell you what they see: their name, the timeline, the matrix.
-
-### If DASHBOARD_MODE is copy
-
-You make it here from the Project file **dashboard.html** (can't see it: say so; their sheet is ready, Jerry helps).
+Their own dashboard, made here from the Project file **dashboard.html** (can't see it: say so; their sheet is ready, Jerry helps).
 
 - Copy dashboard.html **exactly, every character**. Replace **only** the JSON inside `<script id="data" type="application/json">` with their data block (`sheet.url` = their sheet link, `sheet.account` = their email; every `<` as `\u003c`). Never shorten or rewrite anything else; never add a script tag.
 - Show it as an HTML artifact published with exactly these capabilities (dashboard/CAPABILITIES.md): `{"sample":{},"db":{},"user":{},"mcp":{"servers":[{"server":"Google Sheets","tools":["get_values","update_values","get_spreadsheet"]}]}}`
 - Then: "This is your dashboard; it reads your sheet each time you open it. Click **Allow** when asked."
-- Ask what they see: name, timeline, matrix.
-
-### Either way
-
+- Ask what they see: name, timeline, matrix. A banner "wasn't copied exactly" means your copy slipped: copy it again, exactly.
 - Then: "Next time, open a new chat in this Project and tell me what changed; I update the sheet, and the dashboard shows it when you open it or press **Refresh**."
+- **It's theirs to change.** New pages, lists and layouts go in the sheet. For a design change (a chart, colours, a new section), edit their artifact, keep the data block and the sheet as the data, and set `<meta name="lite-hash" content="custom">`.
 - Error or old data: check step 4, then **Refresh**. Still wrong: say so; their sheet is safe.
 
 ## The sheet

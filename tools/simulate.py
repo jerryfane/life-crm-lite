@@ -41,7 +41,7 @@ USER_MODEL = "gpt-5.3-codex"
 TODAY = "2026-10-11"
 MAX_TURNS = 16
 DEFAULT_OUT = Path("/root/fleet-tools/state/life-crm-lite/skill")
-DASH_RE = re.compile(r"\[DASHBOARD\b|DASHBOARD_LINK|claude\.ai/public/artifacts|<script id=\"data\"|<!doctype html", re.I)
+DASH_RE = re.compile(r"\[DASHBOARD\b|claude\.ai/public/artifacts|<script id=\"data\"|<!doctype html", re.I)
 FOLDER_RE = re.compile(r"\[FOLDER:\s*([^\]]*)\]")
 PRO_PLANS = ("Claude Pro", "Claude Max")
 
@@ -67,7 +67,7 @@ write the message you'd send, and if you would make the artifact yourself, write
 "[DASHBOARD: dashboard.html with the data block]" instead of the HTML. Treat every tool call as
 successful: use https://drive.google.com/drive/folders/SIM and
 https://docs.google.com/spreadsheets/d/SIM as the folder and sheet links, and
-https://claude.ai/public/artifacts/SIM as the published dashboard link. Everything else as the
+https://claude.ai/public/artifacts/SIM as the link of the dashboard you publish. Everything else as the
 instructions say.
 """
 

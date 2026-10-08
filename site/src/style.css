@@ -114,7 +114,6 @@ kbd { display: inline-block; min-width: 24px; padding: 1px 7px; border-radius: 6
 .sec:not(.alt) .panel { box-shadow: inset 0 0 0 1px var(--line); }
 .sec:not(.alt) .after { box-shadow: inset 0 0 0 1px var(--line); }
 .panel .cta { margin-top: 20px; }
-.btn.off { background: var(--line); color: var(--m2); cursor: default; }
 .panel { margin-top: 24px; padding: 32px 40px; border-radius: var(--r-card); background: #fff; }
 .panel h3 { font-size: 21px; line-height: 1.24; font-weight: 700; letter-spacing: -.03em; }
 .panel * + h3 { margin-top: 32px; padding-top: 24px; border-top: 1px solid var(--hair); }

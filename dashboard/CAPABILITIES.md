@@ -25,11 +25,12 @@ result's `payload`.
 
 ## Viewers
 
-- Everyone opens the published link **signed in to claude.ai** in that browser. Signed out, every capability is
+- Each person's Claude publishes their own dashboard from `dashboard.html` (`skill/SKILL.md`, step 6). They open it
+  **signed in to claude.ai** in that browser. Signed out, every capability is
   null and the page says "Sign in to claude.ai in this browser, then reload."
 - Each viewer needs the **Google Sheets** connector connected in claude.ai (Customize > Connectors). The page says
   so if it's missing.
 - The first time the page uses Google Sheets, claude.ai asks the viewer to **allow Google Sheets** for this page.
   Sheets calls run with the viewer's own Google account. The first Ask asks for permission too.
-- On first open the page asks for the viewer's sheet link and keeps it in their own `db` space. A published page has
-  no `sheet.url` of its own.
+- The page uses the `sheet.url` in its data block, which Claude sets to the person's sheet. Without one, it asks for
+  the sheet link on first open and keeps it in the viewer's own `db` space.

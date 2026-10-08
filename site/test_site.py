@@ -81,7 +81,7 @@ class Build(unittest.TestCase):
             build.build(out, self.tmp, **kw)
         return out, err.getvalue()
 
-    def add_dashboard(self, sheet_flow=False):
+    def add_dashboard(self, sheet_flow=True):
         (self.tmp / "dashboard" / "dist").mkdir(parents=True)
         body = "<!doctype html><title>d</title>" + ("<script>LiteSource.setSheet</script>" if sheet_flow else "")
         (self.tmp / "dashboard" / "dist" / "dashboard.html").write_text(body)
@@ -96,51 +96,31 @@ class Build(unittest.TestCase):
         self.assertNotIn("ChatGPT", index)
         self.assertIn('href="/viewer/">backup page</a>', index)
 
-    def test_default_is_published(self):
-        self.assertEqual(build.DASHBOARD_MODE, "published")
-        self.assertEqual(build.build.__defaults__[1:], (build.DASHBOARD_MODE, build.DASHBOARD_URL))
-
-    def test_published_empty_url(self):
+    def test_dashboard_step(self):
         self.add_dashboard()
-        out, _ = self.run_build(mode="published", url="")
-        index = (out / "index.html").read_text()
-        self.assertIn("Link coming Saturday", index)
-        # No promise about how the unpublished dashboard behaves.
-        self.assertNotIn("asks for your sheet", index)
-        self.assertNotIn("Open the dashboard</a>", index)
-        self.assertNotIn('download="dashboard.html"', index)
-        self.assertEqual((out / "dashboard" / "index.html").read_text(), "<!doctype html><title>d</title>")
-
-    def test_configured_paths_need_the_sheet_link_flow(self):
-        # Without the dashboard's sheet-link flow, a link or copy mode would promise what the dashboard can't do.
-        self.add_dashboard()
-        for kw in ({"url": "https://claude.ai/public/artifacts/x"}, {"mode": "copy"}):
-            with self.assertRaises(SystemExit, msg=kw):
-                self.run_build(**kw)
-
-    def test_published_with_url(self):
-        self.add_dashboard(sheet_flow=True)
-        out, _ = self.run_build(mode="published", url="https://claude.ai/public/artifacts/x?a=1&b=2")
-        index = (out / "index.html").read_text()
-        self.assertIn('href="https://claude.ai/public/artifacts/x?a=1&amp;b=2"', index)
-        self.assertNotIn("Link coming Saturday", index)
-        self.assertIn("asks for your sheet", index)
-        self.assertIn("Sign in to <b>claude.ai</b>", index)
-
-    def test_bad_url_or_mode_refused(self):
-        for kw in ({"url": "javascript:alert(1)"}, {"mode": "both"}):
-            with self.assertRaises(SystemExit, msg=kw):
-                self.run_build(**kw)
-
-    def test_copy_mode(self):
-        self.add_dashboard(sheet_flow=True)
-        out, _ = self.run_build(mode="copy", url="https://claude.ai/x")
+        out, _ = self.run_build()
         index = (out / "index.html").read_text()
         self.assertEqual(index.count('download="dashboard.html"'), 2)  # Project files step and dashboard step
         self.assertIn("then add the dashboard file to it", index)
-        self.assertNotIn("Link coming Saturday", index)
-        self.assertNotIn("https://claude.ai/x", index)
-        self.assertTrue((out / "dashboard" / "dashboard.html").is_file())
+        self.assertIn("makes your own dashboard", index)
+        self.assertIn("ask Claude to change it", index)
+        for gone in ("Link coming Saturday", "Open the dashboard</a>", "public/artifacts", "Sign in to <b>claude.ai</b>"):
+            self.assertNotIn(gone, index)
+        self.assertEqual((out / "dashboard" / "dashboard.html").read_text(),
+                         (self.tmp / "dashboard" / "dist" / "dashboard.html").read_text())
+        self.assertTrue((out / "dashboard" / "index.html").is_file())
+
+    def test_no_dashboard_no_step(self):
+        out, _ = self.run_build()
+        index = (out / "index.html").read_text()
+        self.assertNotIn("dashboard.html", index)
+        self.assertNotIn("dash-steps", index)
+        self.assertNotIn("then add the dashboard file to it", index)
+
+    def test_dashboard_without_sheet_flow_refused(self):
+        self.add_dashboard(sheet_flow=False)
+        with self.assertRaises(SystemExit):
+            self.run_build()
 
     def test_hostile_inputs_are_escaped(self):
         bad = 'x"><img src=x onerror=alert(1)>'
@@ -153,6 +133,7 @@ class Build(unittest.TestCase):
             "[click](javascript:alert(3)) and [ok](https://e.example/?a=1&b=\"2) `<b>`\n\n| <i>a</i> |\n|---|\n| <svg> |\n")
         (self.tmp / "skill").mkdir()
         (self.tmp / "skill" / "SKILL.md").write_text("</textarea><script>alert(4)</script>\n{{EXAMPLES}}\n")
+        self.add_dashboard()
 
         out, err = self.run_build()
         self.assertIn("skipping", err)
