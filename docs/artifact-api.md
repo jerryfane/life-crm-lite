@@ -1,181 +1,159 @@
-# How the dashboard artifact reaches Claude, Drive and storage
+# How the dashboard artifact reaches Claude, Google Sheets and storage
 
-Checked 2026-10-08 for issue #1. The dashboard (a Claude artifact) needs three things from its runtime: ask Claude,
-call tools of the user's Google connectors, keep a copy of the data between visits. This page says what Anthropic and
-Google publish about each, what is only known from unofficial sources, and how `dashboard/src/` uses it.
+The dashboard is a Claude artifact. It needs three things from its runtime: ask Claude, call tools of the viewer's
+Google connectors, and keep data between visits. This page records what Anthropic and Google publish about each,
+what Jerry's mini-test showed, and how `dashboard/src/` uses it. To publish the dashboard, see
+[`dashboard/CAPABILITIES.md`](../dashboard/CAPABILITIES.md).
 
-Saved copies of every page read: `/root/fleet-tools/state/life-crm-lite/artifact-api/pages/`.
+Saved copies of every page read: `/root/fleet-tools/state/life-crm-lite/artifact-api/pages/`. Test results:
+`/root/fleet-tools/state/life-crm-lite/mini-test-results/round1.md` (with screenshots).
 
-**VERIFIED** = read on an official Anthropic or Google page (linked). **UNVERIFIED** = not on an official page:
-inferred, or from the unofficial copy of the claude.ai system prompt (see "Sources").
+What the status labels mean:
+
+- **TESTED** = seen working, or failing, in Jerry's mini-test, round 1 (2026-10-08, runtime contract 0.2.74).
+- **VERIFIED** = read on an official Anthropic or Google page (linked).
+- **UNVERIFIED** = neither of the above.
 
 ## The short answer
 
-**No official page documents the JavaScript calls an artifact uses.** Anthropic's pages describe what artifacts can
-do (call Claude, use connectors, store data), never the code. The code shapes below come from the claude.ai system
-prompt dated 2026-09-29, as copied in a public GitHub repository. That copy also says that **new artifacts have two
-runtimes**: the chat's preview has the APIs below, and a published page has none of them. A published page instead uses
-"runtime capabilities", whose exact calls Claude only learns from its Artifact tool (`action: "capabilities"`) when it
-builds the page. So all runtime calls live in one small file, `dashboard/src/bridge.js`, and Friday's mini-test
-(below) says what to put there.
+- **TESTED.** There is one entry point: `await window.claude.use(name)`. It returns the capability, or `null` when this view can't run it.
+- **TESTED.** Capabilities are declared when the artifact is published.
+- **TESTED.** The published link works when the viewer is **signed in to claude.ai**. Signed out, every capability is `null`.
+- **TESTED.** Ask (`sample`) works, and so does per-viewer storage (`db` + `user`).
+- **Not tested yet:** connector calls (`mcp`). Google Sheets wasn't connected, and in that session Google Drive offered no tool that reads.
+
+No official page documents these calls. All runtime calls therefore live in one small file,
+`dashboard/src/bridge.js`. Once the Sheets tool names are known, only its `CONFIG` block changes.
 
 ## Facts
 
-### Calling Claude
+### The runtime (round 1)
 
 | Fact | Status |
 |---|---|
-| Artifacts can call Claude. No API key is needed, and use counts against the plan of the person using the artifact. New artifacts ask for permission the first time they use Claude. | VERIFIED [help: artifacts][a] |
-| Code: `await window.claude.complete(prompt)` returns the answer text (one string in, one string out). | UNVERIFIED (system prompt copy; also seen working in [claude-code#16848][i]) |
-| Code: `fetch("https://api.anthropic.com/v1/messages", {method: "POST", headers: {"Content-Type": "application/json"}, body: JSON.stringify({model: "claude-sonnet-4-6", max_tokens: 1000, messages: [...]})})`, no key, Messages API answer. | UNVERIFIED (system prompt copy) |
-| In a *published* new artifact, `api.anthropic.com` is blocked by the page's security policy and `window.claude.complete`, `window.storage`, `window.fs` don't exist. Asking Claude there is the "sample" capability. | UNVERIFIED (system prompt copy) |
+| `await window.claude.use(name)` returns the capability's namespace, or `null` if this view can't run it. | TESTED |
+| Capabilities are declared at publish (the Artifact tool's `capabilities` input). It lists artifact, assets, comments, db, downloads, files, mcp, permissions, room, sample, self and user. | TESTED (as reported by Claude) |
+| Published link, viewer signed in to claude.ai: `user` and `db` work (saved "hello" and read it back), and `sample` works ("OK"). | TESTED |
+| Published link, viewer signed out: `claude.use("user")`, `("sample")` and `("mcp")` all return `null`. | TESTED |
+| Private view inside the chat: `db` + `user` and `sample` work. | TESTED |
 
-### Calling a connector's tools
-
-| Fact | Status |
-|---|---|
-| On Pro, Max, Team and Enterprise (web and desktop, not mobile), artifacts can read from and write to the apps the user connected to Claude. | VERIFIED [help: artifacts][a] |
-| The first time, Claude shows which apps and tools the artifact will use and asks for approval; individual tools can be turned off; the choice is remembered for that artifact. | VERIFIED [help: artifacts][a] |
-| **Connector tools that need approval for each action aren't available to artifacts.** | VERIFIED [help: artifacts][a] |
-| Everyone connects their own apps, also in a shared artifact. Team/Enterprise owners can switch it off (**Enable artifact connectors**). | VERIFIED [help: artifacts][a], [help: admin guide][b] |
-| Per-tool permissions are set in **Customize > Connectors > (connector) > Tool permissions**: **Always allow**, **Needs approval** or **Blocked**, per tool or group. In a chat, **Always allow** on an approval prompt does the same. | VERIFIED [docs: connectors][c] |
-| For pages published from Claude Code: Claude *declares* which connectors (and tool names) the page may call when it publishes; the page can't call others; calls run through the viewer's account; the viewer approves before the first call; a declined or missing connector leaves the live parts empty; tool names the connector doesn't expose leave them empty for everyone; responses are cached in the browser and refreshed on open. The same admin toggle governs artifacts made in claude.ai chats. | VERIFIED [Claude Code docs: artifacts][d] (Claude Code pages; for chat-made artifacts: UNVERIFIED) |
-| Legacy code shape: the `/v1/messages` fetch above plus `mcp_servers: [{type: "url", url: "<connector url>", name: "<name>"}]`. Claude runs the tools server-side; the answer's `content` holds `mcp_tool_use` and `mcp_tool_result` blocks; the tool's output is `mcp_tool_result.content[0].text`, usually JSON. Only the user's own connectors are accepted. | UNVERIFIED (system prompt copy; [claude-code#16848][i] reports a custom MCP URL silently dropped, closed "not planned") |
-| The system prompt copy lists the user's connectors with their URLs, e.g. `{"name": "Google Drive", "url": "https://drivemcp.googleapis.com/mcp/v1"}`. | UNVERIFIED |
-| In a published new artifact, connector calls are a declared capability with `window.claude.*` calls named only in the Artifact tool's `capabilities` answer. | UNVERIFIED (system prompt copy) |
-
-### Google Drive and Google Sheets connectors
+### Asking Claude
 
 | Fact | Status |
 |---|---|
-| Claude's Google Drive connector is made by Google; its URL is `https://drivemcp.googleapis.com/mcp/v1`. | VERIFIED [Claude directory: Google Drive][e] |
-| Drive MCP tools: `copy_file`, `create_file`, `download_file_content`, `get_file_metadata`, `get_file_permissions`, `list_recent_files`, `read_file_content`, `search_files`. No tool edits a sheet's cells. | VERIFIED [Google: Drive MCP][f] |
-| `download_file_content({fileId, exportMimeType})` → `{id, title, mimeType, content}` (content = base64). For Google files `exportMimeType` picks the export format (we ask for .xlsx). Read-only. | VERIFIED [Google: download_file_content][f2] |
-| `read_file_content({fileId})` → `{fileContent}`: a "natural language representation" of the file, possibly incomplete. Not used: we need exact cells. | VERIFIED [Google: read_file_content][f3] |
-| Claude has a separate **Google Sheets** connector (with Google Docs and Slides) for live editing, beside Drive. | VERIFIED [help: Google Workspace][g] |
-| Google's Sheets MCP server (`sheetsmcp.googleapis.com`, Developer Preview) has `get_values`, `get_spreadsheet`, `update_spreadsheet`, `update_values`, `update_formulas`, `insert_dimension`. | VERIFIED [Google: Sheets MCP][h] |
-| `get_values({spreadsheetId, range})` and `get_spreadsheet({spreadsheetId, includeGridData, fields[], ranges[]})` are read-only (`readOnlyHint` true). `update_values({spreadsheetId, range, values})` is a write (`readOnlyHint` false, `destructiveHint` false). | VERIFIED [Google: Sheets tools][h] |
-| That Claude's Google Sheets connector is this server, at `https://sheetsmcp.googleapis.com/mcp/v1`, with these tool names. | UNVERIFIED |
-| Which Drive/Sheets tools are "Needs approval" by default in Claude. Gmail's send/reply/forward ask each time by default; nothing says so for Drive or Sheets. A write tool set to **Needs approval** would be unavailable to the artifact until the user sets it to **Always allow**. | UNVERIFIED |
+| Artifacts can call Claude with no API key. Use counts against the viewer's own plan. | VERIFIED [help: artifacts][a] |
+| `const sample = await claude.use("sample"); await sample("Say OK")` returns `{text, truncated}`. There is also `sample.json(...)`. The first call asks the viewer for consent. | TESTED |
+| Whether `sample` accepts a separate system prompt. | UNVERIFIED. `bridge.js` puts fixed text in front of the data as a preamble. |
 
 ### Storage
 
 | Fact | Status |
 |---|---|
-| Pro and up, web and desktop: artifacts store data between sessions, **personal** (per user) or **shared**; 20 MB per artifact; text only. New artifacts don't need publishing to store data. The first use of shared storage shows a warning. | VERIFIED [help: artifacts][a] |
-| Code: `await window.storage.get(key, shared)` → `{key, value, shared}` (throws if the key doesn't exist); `set(key, value, shared)` → `{key, value, shared}`; `delete`, `list(prefix, shared)`. Keys under 200 characters, no spaces, `/`, `\` or quotes; values under 5 MB; rate limited. | UNVERIFIED (system prompt copy) |
-| In a published new artifact: kept data is a "state" capability (such as `db`); a per-viewer convenience may use `localStorage` guarded by try/catch. | UNVERIFIED (system prompt copy) |
+| Pro and up, web and desktop: storage is personal or shared, at most 20 MB per artifact, text only. | VERIFIED [help: artifacts][a] |
+| Declare `db` + `user`. Then `uid = await (await claude.use("user")).id()` and `db.collection("data/users/" + uid).doc(key).set({...})` / `.get()`. That collection is private to each viewer. | TESTED |
+| One document holds at most 256 kB of JSON. Under `data/users/` each viewer's subtree is private. | UNVERIFIED (claude.ai system prompt copy, Artifact tool text) |
+| What `.get()` returns: a snapshot with `.data()`, `{data}` or the document. | UNVERIFIED. `bridge.js` accepts all three. |
+| `localStorage` works inside try/catch, but only in that browser. | TESTED (as reported by Claude) |
+
+### Connectors
+
+| Fact | Status |
+|---|---|
+| On Pro and up (web and desktop), artifacts can read from and write to the viewer's connected apps. On first use the viewer approves the apps and tools. **Connector tools that need approval for each action aren't available to artifacts.** | VERIFIED [help: artifacts][a] |
+| Declare `mcp: {servers: [{server: "<connector display name>", tools: [...]}]}`. Then `mcp = await claude.use("mcp")` gives `callTool(server, tool, input)`, which returns a result whose data is `.payload`. Also: `watchTool`, `listTools(server)`, `describeTool(server, tool)`, `server(name)`. Calls run with the viewer's own credentials. | TESTED (as reported by Claude; no call made yet) |
+| Publishing is refused when a server is declared with an empty tool list. Claude declares a tool only after one real call to it. | TESTED |
+| Per-tool permissions are in **Customize > Connectors > (connector) > Tool permissions**: **Always allow**, **Needs approval** or **Blocked**. | VERIFIED [docs: connectors][c] |
+| For pages published from Claude Code: the viewer approves before the first call, and a tool name the connector doesn't have leaves that part empty. | VERIFIED [Claude Code docs: artifacts][d] |
+| In round 1, Jerry's Google Drive connector exposed only `share_file`, `trash_file`, `update_file`, so it can't be used to read the sheet. | TESTED |
+| Google's own Drive MCP server has `download_file_content`, `read_file_content` and others. | VERIFIED [Google: Drive MCP][f] (but not what Jerry's connector offered) |
+| Google's Sheets MCP server (`sheetsmcp.googleapis.com`) has `get_values({spreadsheetId, range})` and `get_spreadsheet({spreadsheetId, includeGridData, fields, ranges})`, both read-only, plus `update_values({spreadsheetId, range, values})`, which writes. | VERIFIED [Google: Sheets MCP][h] |
+| Claude's **Google Sheets** connector exists beside Drive. | VERIFIED [help: Google Workspace][g] |
+| Its display name is "Google Sheets", and its tools are Google's names above. | UNVERIFIED (round 2) |
 
 ### Other limits
 
 | Fact | Status |
 |---|---|
 | Artifacts need **Code execution and file creation** on in Settings > Capabilities. | VERIFIED [help: artifacts][a] |
-| Claude Code artifacts: one self-contained HTML page, at most 16 MiB; `fetch` may reach only the page's own origin and Google Fonts; scripts only from five CDNs; the page can't start downloads itself. | VERIFIED [Claude Code docs: artifacts][d] |
-| React vs plain HTML: no official page separates them for these features. New artifacts are HTML pages; the dashboard is plain HTML + JS (no React), so it doesn't matter here. | UNVERIFIED |
+| A published page is one self-contained HTML file of at most 16 MB. | VERIFIED [Claude Code docs: artifacts][d] |
+| The old preview APIs: `window.claude.complete`, `fetch` to `api.anthropic.com/v1/messages` with `mcp_servers`, and `window.storage`. A published page has none of them. | UNVERIFIED (system prompt copy). Not used. |
 
 ## How `dashboard/src/` uses this
 
-- **`bridge.js`** (`window.LiteBridge`) holds every runtime call, so it is the only file to change after Friday:
-  - `callTool(app, tool, args)`: the legacy pattern. One `/v1/messages` call with `mcp_servers` set to the Google Drive
-    or Google Sheets URL, asking Claude to call exactly that tool once; returns the parsed `mcp_tool_result`, throws
-    if Claude didn't call it or the tool failed.
-  - `complete(system, prompt)`: `window.claude.complete` when present, else `/v1/messages`.
-  - `get(key)` / `set(key, value)`: `window.storage` (personal, never shared), else `localStorage`, else memory.
-    They never throw.
-  - If the published page uses capabilities instead: rewrite only these four functions with the calls the
-    `capabilities` answer gives, and declare the Google Sheets and Google Drive connectors with the tools
-    `get_spreadsheet`, `get_values`, `update_values`, `download_file_content`.
-- **`source.js`** (`window.LiteSource`) is the contract the dashboard uses (all async, never throw):
-  - `load()` reads the sheet whose id is in the embedded block's `sheet.url`: first with Sheets
-    `get_spreadsheet` (all tabs, one call), else Drive `download_file_content` as .xlsx (unzipped in the page). It
-    remembers which one worked. Rows become the data block with the same rules as `tools/convert.py to-json`.
-    A good read is saved (`lite-crm:<sheet id>`); when the live read fails it returns that saved copy, else the
-    embedded block, with the reason in `error`. Example links (`…/d/EXAMPLE-…`) skip the live read.
-  - `markDone(stepId)` reads `Steps` with `get_values`, finds the row (the `id` cell, or `s1`, `s2`… by position, as
-    convert.py numbers them) and writes `done` into its `status` cell with `update_values`.
-  - `ask(question, data)` asks Claude with a short system prompt: answer from this plan only, never invent, plain
-    words, the user's tone (`data.tone`). The sheet link and account aren't sent.
-- **Tests** (`node --test dashboard/test/*.test.js`, needs python3 + openpyxl): every `examples/*/crm.xlsx` and a
-  sheet with dates, numbers, extra columns and settings read through both paths must equal `convert.py to-json`;
-  a mock bridge checks the fallbacks, `markDone`, `ask`, and the bridge's parsing of `mcp_tool_*` blocks.
+- **`bridge.js`** (`window.LiteBridge`) is the only file that calls `claude.use`.
+  - `CONFIG` at the top holds `SHEETS_SERVER` ("Google Sheets"), `DRIVE_SERVER` (not called), `SHEETS_TOOLS`
+    (`read`, `write`, `info`; `"?"` until known, which makes calls fail with a clear message) and `SHEETS_ARGS`
+    (each tool's input, in Google's shape).
+  - `runtime()` returns `"none"` outside claude.ai, `"signed-out"` when `user` or `db` is null, and `"ok"` otherwise.
+  - `sheets(op, …)` calls `mcp.callTool(SHEETS_SERVER, tool, input)` and returns `.payload`. When `mcp` is null it
+    throws "Sign in to claude.ai in this browser, then reload.", or, for a signed-in viewer, a message to connect
+    Google Sheets.
+  - `complete(system, prompt)` calls `sample(system + "\n\n" + prompt)` and returns `.text`.
+  - `get` / `set` use the viewer's `db` space. If that is missing or fails, they fall back to `localStorage`, then
+    to memory. They never throw, and every `localStorage` access is guarded.
+- **`source.js`** (`window.LiteSource`) is the dashboard's contract. Nothing in it throws.
+  - `load()` returns:
+    - `source: "embedded"` with no error outside claude.ai;
+    - `error: "no_runtime"` when the viewer is signed out;
+    - `error: "no_sheet"` when there is no sheet link;
+    - otherwise the live sheet (`source: "drive"`), else that sheet's saved copy (`"cache"`), else the embedded
+      block, with the reason in `error`.
+  - Live reading: `info` gets every tab with typed cells in one call. If the answer has no cells, `read` fetches
+    each tab. Rows become the data block by the same rules as `tools/convert.py to-json`.
+  - `getSheet()` / `setSheet(url|null)` handle the viewer's sheet link, saved in their `db`. If the viewer has none,
+    the page uses a real `sheet.url` in the embedded block (copy mode).
+  - `markDone(stepId)` reads `Steps`, finds the row (by its `id` cell, or `s1`, `s2`… by position) and writes
+    `done` into its `status` cell.
+  - `ask(question, data)` sends a fixed system text. The plan (owner name and tone included) goes in the user part
+    as JSON inside `<plan>…</plan>`, marked as data, never instructions. Every `<` in it is escaped. The sheet link
+    and account aren't sent.
+- **Tests**: `node --test dashboard/test/*.test.js` (needs python3 + openpyxl).
+  - Every `examples/*/crm.xlsx`, plus a sheet with dates, numbers, extra columns and settings, is turned by
+    `sheets_answer.py` into what the connector would answer. Read through `source.js`, each must equal
+    `convert.py to-json`.
+  - Mocks of `claude.use` cover the runtime states, storage fallbacks, `markDone`, `ask` (including an injected
+    name), and `callTool` payloads.
 
-Size: `bridge.js` + `source.js` add about 22 KB to the built dashboard (stripped). If Friday shows the Sheets connector
-works, the Drive .xlsx path (`unzip`, `readXlsx`, `readers.drive`) can go, saving about 6 KB.
+## Mini-test round 2: the Sheets tool names (2 minutes)
 
-## Mini-test for Friday (2 minutes)
-
-Use a Pro account with Google Drive (and, if listed, Google Sheets) connected in **Customize > Connectors**, on
-claude.ai in Chrome. Have a test sheet made by the lite skill open in Drive; copy its link. Paste this into a new chat:
+Use a Pro account with **Google Sheets** connected in **Customize > Connectors**, on claude.ai in Chrome, signed in.
+Have a sheet made by the lite skill and copy its link. Paste this into a new chat:
 
 ```text
-I'm testing what an artifact can do on my plan. Please do these in order.
-
-1. Before writing any code: tell me exactly how code inside an artifact made in this chat can
-   (a) ask Claude, (b) call a tool of my Google Sheets and Google Drive connectors, (c) save text between visits.
-   Give the function names and arguments as your instructions describe them. If you have an Artifact tool,
-   first call it with action "capabilities" and quote what it says about connectors, asking Claude and storage.
-   Also list the tool names my Google Drive and Google Sheets connectors have.
-
-2. Then make a small artifact called "Lite API test" with five buttons. Each shows a green tick or a red cross
-   with the full error text, and the code calls from inside the artifact (not from this chat):
-   - Save: store "hello" under the key lite-test, read it back, show it.
-   - Ask: ask Claude "Say OK" and show the answer.
-   - Read (Sheets): Google Sheets get_values, range "Steps!A1:C3", of the sheet <PASTE SHEET LINK>; show the values.
-   - Write (Sheets): Google Sheets update_values, write "test" into "Settings!D20" of the same sheet.
-   - Read (Drive): Google Drive download_file_content of the same file as .xlsx; show the size in bytes.
-
-3. Tell me in one line what you had to change from your usual artifact code, and why.
+1. Using my Google Sheets connector, read Steps!A1:C3 of <PASTE SHEET LINK> and show me the values.
+2. List every tool my Google Sheets connector has, with each tool's input fields. Name the ones that
+   (a) read one range's values, (b) write values into one range, (c) return the spreadsheet's tabs with cells.
+3. Make and publish an artifact "Lite API test 2" with three buttons, each calling
+   (await claude.use("mcp")).callTool("Google Sheets", tool, input) with the tools from step 2
+   (declare them in the mcp capability): Read Steps!A1:C3, Write "test" into Settings!D20, Info (tab titles).
+   Show each result's payload as JSON, or the full error.
 ```
 
-Then press each button once, reload the page and press **Save** again (it should read "hello" back). Note:
+Then open the published link while signed in, press each button, and note the payloads and any approval window.
+After that, change only `CONFIG` in `dashboard/src/bridge.js`, rebuild, and rerun the tests.
 
-1. Claude's answer to step 1, word for word (screenshot is fine).
-2. The approval window: which apps and tools it lists, and whether any tool is missing or marked as needing approval.
-3. Each button: tick or cross, with the error text.
-4. In **Customize > Connectors > Google Sheets / Google Drive > Tool permissions**: what `get_values`,
-   `get_spreadsheet`, `update_values`, `download_file_content` are set to.
+## Open questions
 
-If a write shows a cross with an approval error, set `update_values` to **Always allow** there and try again.
-
-## Open questions Friday answers
-
-1. Does a chat-made artifact on Pro use `window.claude.complete` / `fetch` + `mcp_servers` / `window.storage`
-   (what `bridge.js` does now), or declared capabilities with other `window.claude.*` calls? (step 1 + buttons)
-2. Is Claude's Google Sheets connector Google's `sheetsmcp` server with `get_values` / `get_spreadsheet` /
-   `update_values`? If not, which tool names? (step 1)
-3. Is `update_values` usable without approval each time (or after **Always allow**)? If not, ticking a step done
-   can't write the sheet, and the dashboard keeps showing the error it gets. (Write button)
-4. Does `download_file_content` with the .xlsx export work through Drive? (Drive button) If Sheets reads work, the
-   Drive path is a backup only.
-5. Does storage survive a reload of the artifact without publishing? (reload + Save)
-
-After the test, change only `dashboard/src/bridge.js` (URLs at the top, the four functions) and rerun
-`node --test dashboard/test/*.test.js`.
+1. What are the Google Sheets connector's tool names and inputs, and what do their payloads look like? (round 2)
+2. Is the write tool usable without approval each time, or after **Always allow**? If it isn't, ticking a step done
+   shows the error and leaves the sheet unchanged.
+3. Does `mcp` on a published page use each viewer's own Sheets connector? The runtime text says it uses "the
+   viewer's credentials".
 
 ## Sources
 
-- [a]: https://support.claude.com/en/articles/17153992-what-are-artifacts-and-how-do-i-use-them ("Artifacts that use Claude", "Connect your apps to an artifact", "Store data in an artifact")
-- [b]: https://support.claude.com/en/articles/16994751-artifacts-admin-guide-for-team-and-enterprise-plans
-- [c]: https://claude.com/docs/connectors/getting-started ("Approve the tool call", "Manage or disconnect a connector")
-- [d]: https://code.claude.com/docs/en/artifacts ("Pull live data with MCP connectors", "Page constraints")
-- [e]: https://claude.com/connectors/google-drive
+- [a]: https://support.claude.com/en/articles/17153992-what-are-artifacts-and-how-do-i-use-them
+- [c]: https://claude.com/docs/connectors/getting-started
+- [d]: https://code.claude.com/docs/en/artifacts
 - [f]: https://developers.google.com/workspace/drive/api/reference/mcp
-- [f2]: https://developers.google.com/workspace/drive/api/reference/mcp/tools_list/download_file_content
-- [f3]: https://developers.google.com/workspace/drive/api/reference/mcp/tools_list/read_file_content
-- [g]: https://support.claude.com/en/articles/10166901-use-google-workspace-connectors ("Manage individual connectors")
-- [h]: https://developers.google.com/workspace/sheets/api/reference/mcp (and `/tools_list/get_values`, `/get_spreadsheet`, `/update_values`)
-- [i]: https://github.com/anthropics/claude-code/issues/16848 (user report, not Anthropic documentation)
-- System prompt copy (unofficial, not published by Anthropic): https://github.com/asgeirtj/system_prompts_leaks/blob/main/Anthropic/raw/claude-sonnet-5.5-raw.md, dated 2026-09-29 inside; sections `anthropic_api_in_artifacts`, `persistent_storage_for_artifacts`, the Artifact tool description.
+- [g]: https://support.claude.com/en/articles/10166901-use-google-workspace-connectors
+- [h]: https://developers.google.com/workspace/sheets/api/reference/mcp
+- Round 1 results: `/root/fleet-tools/state/life-crm-lite/mini-test-results/round1.md`
+- System prompt copy (unofficial): https://github.com/asgeirtj/system_prompts_leaks/blob/main/Anthropic/raw/claude-sonnet-5.5-raw.md
 
 [a]: https://support.claude.com/en/articles/17153992-what-are-artifacts-and-how-do-i-use-them
-[b]: https://support.claude.com/en/articles/16994751-artifacts-admin-guide-for-team-and-enterprise-plans
 [c]: https://claude.com/docs/connectors/getting-started
 [d]: https://code.claude.com/docs/en/artifacts
-[e]: https://claude.com/connectors/google-drive
 [f]: https://developers.google.com/workspace/drive/api/reference/mcp
-[f2]: https://developers.google.com/workspace/drive/api/reference/mcp/tools_list/download_file_content
-[f3]: https://developers.google.com/workspace/drive/api/reference/mcp/tools_list/read_file_content
 [g]: https://support.claude.com/en/articles/10166901-use-google-workspace-connectors
 [h]: https://developers.google.com/workspace/sheets/api/reference/mcp
-[i]: https://github.com/anthropics/claude-code/issues/16848

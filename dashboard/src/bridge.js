@@ -1,72 +1,111 @@
-// LiteBridge: the only code that knows how a Claude artifact reaches Claude, the user's connectors and
-// storage. See docs/artifact-api.md: if Friday's test shows other calls, change this file only.
-// callTool(app, tool, args) -> parsed tool result (throws); complete(system, prompt) -> text (throws);
-// get(key) -> string|null; set(key, value) -> true|false (never throw).
+// LiteBridge: the only code that knows the claude.ai artifact runtime (docs/artifact-api.md). One entry point,
+// `await window.claude.use(name)`, which gives a capability declared at publish (dashboard/CAPABILITIES.md) or
+// null when this view can't run it (signed out of claude.ai). After a test shows the real Google Sheets tool names
+// and arguments, change only CONFIG.
 var LiteBridge = (function (w) {
   "use strict";
-  var API = "https://api.anthropic.com/v1/messages", MODEL = "claude-sonnet-4-6";
-  // Google's own MCP servers, as listed for the user's connectors (Drive: verified; Sheets: to check Friday).
-  var APPS = { drive: ["Google Drive", "https://drivemcp.googleapis.com/mcp/v1"],
-               sheets: ["Google Sheets", "https://sheetsmcp.googleapis.com/mcp/v1"] };
+  var CONFIG = {
+    SHEETS_SERVER: "Google Sheets", // connector display names, as in Customize > Connectors
+    DRIVE_SERVER: "Google Drive",   // not called today: in round 1 Drive offered no read tool
+    SHEETS_TOOLS: { read: "?", write: "?", info: "?" }, // "?" = not known yet: calls fail with a clear error
+    // Arguments of each Sheets tool (Google's Sheets MCP shape until a test shows otherwise).
+    SHEETS_ARGS: {
+      info: function (id) {
+        var c = "sheets.data.rowData.values.";
+        return { spreadsheetId: id, includeGridData: true, fields: ["sheets.properties.title", "sheets.data.startRow",
+          "sheets.data.startColumn", c + "formattedValue", c + "effectiveValue", c + "effectiveFormat.numberFormat.type"] };
+      },
+      read: function (id, range) { return { spreadsheetId: id, range: range }; },
+      write: function (id, range, values) { return { spreadsheetId: id, range: range, values: values }; }
+    }
+  };
+  var SIGN_IN = "Sign in to claude.ai in this browser, then reload.";
+  var CONNECT = "Connect Google Sheets to Claude (claude.ai, Customize > Connectors), then reload.";
+  var OUTSIDE = "This works only when the page is open in claude.ai.";
 
   function create(env) {
-    var claude = env.claude, fetchFn = env.fetch, store = env.storage, local = env.localStorage, mem = {};
+    var claude = env.claude, local = env.localStorage, mem = {}, uses = {};
+    var present = !!(claude && typeof claude.use === "function");
 
-    async function messages(body) {
-      if (!fetchFn) throw new Error("not running inside Claude");
-      var res = await fetchFn(API, { method: "POST", headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(Object.assign({ model: MODEL, max_tokens: 1000 }, body)) });
-      var out = await res.json().catch(function () { return {}; });
-      if (!res.ok) throw new Error("Claude answered " + res.status + (out.error ? ": " + out.error.message : ""));
-      return out.content || [];
+    // The capability, or null; asked once per page load.
+    function use(name) {
+      if (!present) return Promise.resolve(null);
+      if (!uses[name]) uses[name] = Promise.resolve().then(function () { return claude.use(name); })
+        .then(function (c) { return c || null; }, function () { return null; });
+      return uses[name];
     }
-    function joined(blocks) {
-      return (blocks || []).map(function (b) { return typeof b === "string" ? b : b.text || ""; }).join("");
+    async function need(name) {
+      var c = await use(name);
+      if (!c) throw new Error(present ? SIGN_IN : OUTSIDE);
+      return c;
     }
 
-    async function callTool(app, tool, args) {
-      var a = APPS[app], blocks = await messages({
-        system: "You run one tool call for an app. Call the tool exactly once with the given values " +
-          "(adapt argument names to the tool's schema if they differ), call no other tool, then reply: ok.",
-        messages: [{ role: "user", content: "Call " + tool + " with " + JSON.stringify(args) }],
-        mcp_servers: [{ type: "url", url: a[1], name: app }] });
-      var use = blocks.filter(function (b) {
-        // the name may come back prefixed with the server's name ("drive:get_file_metadata")
-        return b.type === "mcp_tool_use" && new RegExp("(^|\\W)" + tool + "$").test(b.name || "");
-      })[0];
-      if (!use) throw new Error("the " + a[0] + " connector isn't available to this page");
-      var res = blocks.filter(function (b) { return b.type === "mcp_tool_result" && b.tool_use_id === use.id; })[0];
-      if (!res) throw new Error(a[0] + " sent no answer");
-      var items = Array.isArray(res.content) ? res.content : [res.content], txt = joined(items);
-      if (res.is_error) throw new Error(a[0] + ": " + (txt || "the tool failed"));
-      var blob = items.filter(function (i) { return i && i.resource && i.resource.blob; })[0];
-      if (blob) return { content: blob.resource.blob };
-      try { return JSON.parse(txt); } catch (e) { return { text: txt }; }
+    // "none": not inside claude.ai (preview, plain browser); "signed-out": inside, but the capabilities are
+    // null; "ok": per-viewer storage works.
+    async function runtime() {
+      if (!present) return "none";
+      return (await use("user")) && (await use("db")) ? "ok" : "signed-out";
+    }
+
+    // op: "info" (id), "read" (id, range) or "write" (id, range, values); returns the tool's payload.
+    async function sheets(op) {
+      var tool = CONFIG.SHEETS_TOOLS[op];
+      if (!tool || tool === "?") throw new Error("this page doesn't know the Google Sheets tools yet");
+      var mcp = await use("mcp"), args = CONFIG.SHEETS_ARGS[op].apply(null, [].slice.call(arguments, 1));
+      if (!mcp) throw new Error(!present ? OUTSIDE : (await runtime()) === "ok" ? CONNECT : SIGN_IN);
+      var r = await mcp.callTool(CONFIG.SHEETS_SERVER, tool, args);
+      if (r && (r.isError || r.error)) throw new Error(String(r.error && r.error.message || r.error || "the tool failed"));
+      var p = r && typeof r === "object" && "payload" in r ? r.payload : r;
+      if (typeof p === "string") {
+        try { p = JSON.parse(p); } catch (e) { /* plain text */ }
+      }
+      return p;
     }
 
     async function complete(system, prompt) {
-      if (claude && typeof claude.complete === "function") return String(await claude.complete(system + "\n\n" + prompt));
-      return joined((await messages({ system: system, messages: [{ role: "user", content: prompt }] }))
-        .filter(function (b) { return b.type === "text"; }));
+      var r = await (await need("sample"))(system + "\n\n" + prompt);
+      return typeof r === "string" ? r : String((r && r.text) || "");
     }
 
+    // Per-viewer storage: db collection data/users/<viewer id>; if that is missing or fails, localStorage;
+    // if that is blocked too, memory (this page load only). Never throw.
+    var docs = null;
+    async function users() {
+      if (!docs) docs = (async function () {
+        var u = await use("user"), db = await use("db");
+        return u && db ? db.collection("data/users/" + (await u.id())) : null;
+      })().catch(function () { return null; });
+      return docs;
+    }
     async function get(key) {
-      try { if (store) { var r = await store.get(key, false); return r ? r.value : null; } } catch (e) { return null; }
-      try { if (local) return local.getItem(key); } catch (e) { /* blocked */ }
+      try {
+        var col = await users();
+        if (col) {
+          var d = await col.doc(key).get();
+          if (d && typeof d.data === "function") d = d.data();
+          else if (d && d.data && typeof d.data === "object") d = d.data;
+          return d && typeof d.value === "string" ? d.value : null;
+        }
+      } catch (e) { /* next store */ }
+      try { if (local) return local.getItem(key); } catch (e) { /* next store */ }
       return key in mem ? mem[key] : null;
     }
     async function set(key, value) {
-      try { if (store) return !!(await store.set(key, value, false)); } catch (e) { return false; }
-      try { if (local) { local.setItem(key, value); return true; } } catch (e) { /* blocked */ }
+      try {
+        var col = await users();
+        if (col) { await col.doc(key).set({ value: value }); return true; }
+      } catch (e) { /* next store */ }
+      try { if (local) { local.setItem(key, value); return true; } } catch (e) { /* next store */ }
       mem[key] = value;
       return true;
     }
-    return { callTool: callTool, complete: complete, get: get, set: set };
+    return { runtime: runtime, sheets: sheets, complete: complete, get: get, set: set };
   }
 
-  var bridge = { create: create };
-  if (w) Object.assign(bridge, create({ claude: w.claude, storage: w.storage, localStorage: w.localStorage,
-    fetch: w.fetch && w.fetch.bind(w) }));
+  var bridge = { create: create, CONFIG: CONFIG, SIGN_IN: SIGN_IN };
+  if (w) Object.assign(bridge, create({ claude: w.claude, localStorage: (function () {
+    try { return w.localStorage; } catch (e) { return null; }
+  })() }));
   return bridge;
 })(typeof window !== "undefined" ? window : null);
 if (typeof module !== "undefined") module.exports = LiteBridge;
