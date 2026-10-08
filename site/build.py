@@ -307,16 +307,23 @@ def build(out: Path, root: Path = ROOT) -> None:
 
     template_link = ('<a class="more" href="/page/template.html">See a page</a>' if has_template
                      else '<span class="soon-tag">Example page coming soon</span>')
-    # The skill expects the template as a Project file named exactly template.html.
-    template_download = ('<p class="dl"><a class="btn" href="/page/template.html" download="template.html">Download template.html</a></p>'
-                         if has_template else '<p class="dl"><span class="soon-tag">template.html is coming soon</span></p>')
+    # The skill expects the template as a Project file named exactly template.html. Without page/template.html
+    # the step is left out entirely, so nobody is asked to add a file that isn't there.
+    download = '<a class="btn" href="/page/template.html" download="template.html">Download template.html</a>'
+    template_steps = {
+        "TEMPLATE_START": ", then add the page file to it" if has_template else "",
+        "TEMPLATE_CLAUDE": ('<li>Download the page file. In the Project, add it to the Project’s files (click <b>+</b> next to Files '
+                            f'and upload it). Keep its name: <b>template.html</b>.<p class="dl">{download}</p></li>') if has_template else "",
+        "TEMPLATE_CHATGPT": ('<li>Paid plans: download the page file and add it to the project with <b>Add files</b>. Keep its name: '
+                             f'<b>template.html</b>. On ChatGPT Free, skip this.<p class="dl">{download}</p></li>') if has_template else "",
+    }
     index = fill((SRC / "index.html").read_text(), {
         "SKILL_NOTE": "" if skill else "The skill is coming soon: it will be here before Sunday.",
         # The parser drops one newline right after <textarea>, so keep the skill's first line intact.
         "SKILL_TEXT": "\n" + html.escape(skill),
         "EXAMPLES": example_cards(found),
         "TEMPLATE_LINK": template_link,
-        "TEMPLATE_DOWNLOAD": template_download,
+        **template_steps,
         "SITE_URL": attr(SITE_URL),
     }, "site/src/index.html")
     (out / "index.html").write_text(index)

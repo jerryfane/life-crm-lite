@@ -87,6 +87,16 @@ class Build(unittest.TestCase):
         self.assertIn("coming soon", index)
         self.assertNotIn("{{", index)
         self.assertTrue((out / "viewer" / "index.html").is_file())
+        self.assertNotIn("template.html", index)  # no step to add a file that isn't there
+
+    def test_template_step_only_with_template(self):
+        (self.tmp / "page").mkdir()
+        (self.tmp / "page" / "template.html").write_text("<!doctype html><title>t</title>")
+        out, _ = self.run_build()
+        index = (out / "index.html").read_text()
+        self.assertEqual(index.count('download="template.html"'), 2)  # Claude and ChatGPT tabs
+        self.assertIn("then add the page file to it", index)
+        self.assertTrue((out / "page" / "template.html").is_file())
 
     def test_hostile_inputs_are_escaped(self):
         bad = 'x"><img src=x onerror=alert(1)>'
