@@ -474,16 +474,31 @@ def validate(data: dict) -> list[str]:
         if lst.get("area") and lst.get("area") not in area_ids:
             out.append(f"list {lst.get('id')}: unknown area '{lst.get('area')}'")
         columns = [str(c) for c in lst.get("columns") or []]
-        keys = [header_key(c) for c in columns]
         if not columns:
             out.append(f"list {lst.get('id')}: needs at least one column")
-        if "" in keys or len(set(keys)) != len(keys) or any(re.search(r"[,|]", c) for c in columns):
-            out.append(f"list {lst.get('id')}: column names must be unique, not empty, without , or |")
+        if any(not header_key(c) or re.search(r"[,|]", c) for c in columns):
+            out.append(f"list {lst.get('id')}: column names must not be empty or contain , or |")
+        out += [f"list {lst.get('id')}: {c}" for c in key_collisions(columns, lst.get("rows") or [])]
     for p in data.get("people") or []:
         if not p.get("name"):
             out.append(f"person {p}: needs a name")
         if p.get("area") and p.get("area") not in area_ids:
             out.append(f"person {p.get('name')}: unknown area '{p.get('area')}'")
+    return out
+
+
+def key_collisions(columns: list[str], rows: list[dict]) -> list[str]:
+    """Column names and row keys of one list that become the same sheet column (header_key)."""
+    names: dict[str, list[str]] = {}
+    for name in [*columns, *(str(k) for row in rows for k in row)]:
+        same = names.setdefault(header_key(name), [])
+        if name not in same:
+            same.append(name)
+    out = [f"row key {k!r} is empty as a sheet header" for k in names.get("", []) if k not in columns]
+    out += [f"{', '.join(map(repr, same))} would share one sheet column ('{key}'); "
+            f"rename them so they differ in more than case, spaces or anything in brackets"
+            for key, same in names.items() if key and len(same) > 1]
+    out += [f"column {c!r} is listed twice" for c in dict.fromkeys(c for c in columns if columns.count(c) > 1)]
     return out
 
 

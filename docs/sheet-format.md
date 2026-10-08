@@ -115,7 +115,9 @@ The last row is always the People page:
 
 Named after the list (`Subscriptions`, `Programs`…), headers = `lists[].columns` in order, one row per item. If a list name clashes with a tab above, the tab gets ` list` added (`People list`).
 
-Column names must be unique, not empty, and contain no `,` or `|` (life-crm splits `fields` on them). A list needs at least one column.
+Column names must not be empty and contain no `,` or `|` (life-crm splits `fields` on them). A list needs at least one column.
+
+The sheet compares headers the way life-crm does: lowercase, spaces as `_`, anything from `(` on dropped. So within one list, the column names and the extra row fields (below) must all stay different after that: `program` and `PROGRAM`, or `visa type` and `visa_type`, would share one sheet column, and one value would overwrite the other. `tools/convert.py check` (and `to-xlsx`, as a warning) names any such pair; rename one of them. A row field that is empty after that rule (`(note)`) is refused too.
 
 A list row may have fields that aren't in `columns`: each becomes an extra column after the list's own columns, filled only on the rows that have it. On reading, the list's columns are the ones named in its Collections row (`title_field` + `fields`); any other header on the tab is an extra field, kept on the rows where the cell isn't empty. (A sheet whose Collections row has neither `title_field` nor `fields` reads every header as a column.)
 
