@@ -1,0 +1,44 @@
+{
+  "lite": 1,
+  "title": "Daniel's plan",
+  "owner": "Daniel",
+  "updated": "2026-10-11",
+  "tone": "motivational",
+  "toneLine": "Twenty pieces on a shelf are a shop waiting to open. One step on it this week is enough.",
+  "sheet": { "url": "https://docs.google.com/spreadsheets/d/EXAMPLE-daniel", "account": "daniel.okafor@example.com" },
+  "areas": [
+    { "id": "work", "name": "Work", "color": "blue", "goal": "New warehouse system live by mid-December", "why": "It's the project my year is judged on" },
+    { "id": "shop", "name": "Ceramics shop", "color": "violet", "goal": "Online shop open before the Christmas market", "why": "I want to find out if people will buy what I make" },
+    { "id": "family", "name": "Family & health", "color": "green", "goal": "Be there for the evenings that matter, and keep running", "why": "" }
+  ],
+  "steps": [
+    { "id": "s1", "area": "work", "title": "Warehouse system rollout", "status": "doing", "owner": "me", "date": null, "start": "2026-10-01", "end": "2026-12-15", "repeat": null, "importance": "high", "urgency": "low", "notes": "Two of five sites switched", "link": "" },
+    { "id": "s2", "area": "work", "title": "Slides for the quarterly review", "status": "todo", "owner": "me", "date": "2026-10-15", "start": null, "end": null, "repeat": null, "importance": "high", "urgency": "high", "notes": "Numbers from finance are already in the shared folder", "link": "" },
+    { "id": "s3", "area": "work", "title": "Hire a night shift lead", "status": "waiting", "owner": "Priya", "date": "2026-10-23", "start": null, "end": null, "repeat": null, "importance": "high", "urgency": "high", "notes": "Priya in HR is sending the shortlist", "link": "" },
+    { "id": "s4", "area": "work", "title": "One-to-ones with the team", "status": "doing", "owner": "me", "date": "2026-10-12", "start": null, "end": null, "repeat": "weekly", "importance": "high", "urgency": "low", "notes": "Mondays", "link": "" },
+    { "id": "s5", "area": "work", "title": "September expense report", "status": "todo", "owner": "me", "date": "2026-10-14", "start": null, "end": null, "repeat": null, "importance": "low", "urgency": "high", "notes": "Receipts are photos on the phone; the assistant can sort them into the form", "link": "" },
+    { "id": "s6", "area": "work", "title": "Clean up the old shared drive", "status": "todo", "owner": "me", "date": null, "start": null, "end": null, "repeat": null, "importance": "low", "urgency": "low", "notes": "", "link": "" },
+    { "id": "s7", "area": "shop", "title": "Apply for a stall at the Christmas market", "status": "todo", "owner": "me", "date": "2026-10-20", "start": null, "end": null, "repeat": null, "importance": "high", "urgency": "high", "notes": "Applications close on the 20th", "link": "" },
+    { "id": "s8", "area": "shop", "title": "Photograph the first 20 pieces", "status": "todo", "owner": "me", "date": "2026-10-24", "start": null, "end": null, "repeat": null, "importance": "high", "urgency": "low", "notes": "Daylight, Saturday morning, white sheet on the balcony", "link": "" },
+    { "id": "s9", "area": "shop", "title": "Choose the shop platform", "status": "stuck", "owner": "me", "date": null, "start": null, "end": null, "repeat": null, "importance": "high", "urgency": "low", "notes": "Can't decide between a marketplace and his own small site", "link": "" },
+    { "id": "s10", "area": "shop", "title": "Kiln firing at the studio", "status": "todo", "owner": "me", "date": "2026-10-17", "start": null, "end": null, "repeat": "every 2 weeks", "importance": "high", "urgency": "low", "notes": "Ana runs the kiln; pieces must be dropped off by Thursday", "link": "" },
+    { "id": "s11", "area": "shop", "title": "Christmas market", "status": "todo", "owner": "me", "date": "2026-12-05", "start": null, "end": null, "repeat": null, "importance": "high", "urgency": "low", "notes": "", "link": "" },
+    { "id": "s12", "area": "family", "title": "Lea's school play", "status": "todo", "owner": "me", "date": "2026-10-30", "start": null, "end": null, "repeat": null, "importance": "high", "urgency": "low", "notes": "6 pm. Block the calendar now.", "link": "" },
+    { "id": "s13", "area": "family", "title": "Sunday run with Tom", "status": "doing", "owner": "me", "date": "2026-10-11", "start": null, "end": null, "repeat": "weekly", "importance": "high", "urgency": "low", "notes": "", "link": "" },
+    { "id": "s14", "area": "family", "title": "Renew the car insurance", "status": "done", "owner": "me", "date": "2026-10-02", "start": null, "end": null, "repeat": null, "importance": "high", "urgency": "high", "notes": "", "link": "" }
+  ],
+  "lists": [
+    { "id": "pieces", "name": "Pieces", "area": "shop", "columns": ["piece", "glaze", "price", "status"], "rows": [
+      { "piece": "Large serving bowl", "glaze": "Celadon", "price": "€65", "status": "fired" },
+      { "piece": "Mugs, set of 4", "glaze": "Speckled white", "price": "€80", "status": "fired" },
+      { "piece": "Small vases, 6", "glaze": "Iron red", "price": "€30 each", "status": "glazing" },
+      { "piece": "Side plates, 8", "glaze": "Celadon", "price": "€18 each", "status": "drying" }
+    ] }
+  ],
+  "people": [
+    { "name": "Priya", "role": "HR partner, night shift lead hire", "area": "work", "contact": "" },
+    { "name": "Ana", "role": "Runs the ceramics studio and the kiln", "area": "shop", "contact": "" },
+    { "name": "Lea", "role": "Daughter, school play on 30 October", "area": "family", "contact": "" },
+    { "name": "Tom", "role": "Running partner, Sundays", "area": "family", "contact": "" }
+  ]
+}
