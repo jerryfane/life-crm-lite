@@ -5,7 +5,7 @@
     python3 page/build.py --check   # exits 1 if either built file is out of date
 
 Sources: page/src/render.js + render.css (the page itself, shared), page/src/template.html (the page shell),
-viewer/src/index.html + export.js (the viewer). The template ships with page/fixtures/maya.json as its data.
+viewer/src/index.html + export.js (the viewer). The template ships with page/starter.json, an almost empty data block.
 The viewer embeds the finished template so "Download my page" gives exactly the same file.
 """
 from __future__ import annotations
@@ -57,7 +57,7 @@ def fill(shell: str, parts: dict[str, str]) -> str:
 
 def build() -> dict[Path, str]:
     css, js = slim(PAGE / "src/render.css"), slim(PAGE / "src/render.js")
-    data = json.loads((PAGE / "fixtures/maya.json").read_text(encoding="utf-8"))
+    data = json.loads((PAGE / "starter.json").read_text(encoding="utf-8"))
     template = fill(src(PAGE / "src/template.html") + "\n", {"DATA": data_block(data), "CSS": css, "JS": js})
     viewer = fill(src(VIEWER / "src/index.html") + "\n", {
         "CSS": css, "JS": js, "EXPORT": slim(VIEWER / "src/export.js"),
