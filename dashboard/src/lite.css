@@ -17,6 +17,7 @@
 .ask-a { position: relative; margin-top: 10px; padding: 12px 36px 12px 14px; background: var(--bg); border-radius: 10px; font-size: 14px; white-space: pre-wrap; }
 .ask-a .x { position: absolute; top: 6px; right: 8px; border: 0; background: none; font-size: 18px; color: var(--muted); cursor: pointer; }
 .ask-e { margin: 8px 2px 0; color: #b91c1c; font-size: 13px; }
+.ask-off { margin: 0 0 16px; padding: 10px 14px; border-radius: 10px; background: var(--bg); color: var(--muted); font-size: 13.5px; }
 
 .mx { background: var(--bg); border-radius: 14px; padding: 18px 18px 16px; margin-bottom: 18px; }
 .mx h2 { margin: 0 0 14px 4px; font-size: 17px; font-weight: 700; letter-spacing: -.01em; }
@@ -27,7 +28,8 @@
 .mx ul { list-style: none; margin: 0; padding: 0; background: #fff; border-radius: 12px; overflow: hidden; }
 .mx li { display: flex; align-items: flex-start; }
 .mx .ck { flex: none; width: 20px; height: 20px; margin: 11px 12px 0 14px; padding: 0; border: 1.5px solid #c7cbd1; border-radius: 50%; background: #fff; cursor: pointer; }
-.mx .ck:hover, .mx .ck:focus-visible { border-color: var(--c); box-shadow: inset 0 0 0 3px var(--t); outline: none; }
+.mx .ck:not(:disabled):hover, .mx .ck:focus-visible { border-color: var(--c); box-shadow: inset 0 0 0 3px var(--t); outline: none; }
+.mx .ck:disabled { cursor: default; }
 .mx-r { flex: 1; min-width: 0; display: flex; align-items: baseline; gap: 12px; padding: 10px 14px 10px 0; border-top: 1px solid var(--line2); }
 .mx li:first-child .mx-r { border-top: 0; }
 .mx-b { flex: 1; min-width: 0; }
