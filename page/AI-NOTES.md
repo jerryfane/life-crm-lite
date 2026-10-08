@@ -17,7 +17,8 @@ Update the sheet first (it's the real data). Then rewrite only the data block: c
 
 ## JSON rules
 
-- Valid JSON: double quotes, no comments, no trailing commas, `null` for nothing. Never write `</` inside it (use `<\/`).
+- Valid JSON: double quotes, no comments, no trailing commas, `null` for nothing.
+- Inside JSON strings, write every `<` as `\u003c` (so `</script>` can never end the block). The page shows it as `<`. Never add a second data block or any other `<script>`: the page refuses to show if it finds one.
 - Dates `YYYY-MM-DD`, or `YYYY-MM` for a month. A step has `date`, or `start` + `end`, or neither.
 - `status`: todo, doing, waiting, stuck, done. `owner`: `"me"`, or the name of the person we're waiting on.
 - `importance` / `urgency`: high or low. Both high: Do now; important only: Schedule; urgent only: Delegate; neither: Drop.

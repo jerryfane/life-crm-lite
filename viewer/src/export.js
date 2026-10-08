@@ -30,7 +30,9 @@ var LiteExport = (function () {
   function v(x) { return x == null ? "" : typeof x === "object" ? pj(x) : String(x); }
   function arr(x) { return Array.isArray(x) ? x.filter(function (o) { return o && typeof o === "object"; }) : []; }
   function hk(c) { return v(c).split("(")[0].trim().toLowerCase().replace(/\s+/g, "_"); }
-  function extras(o, known) { var e = {}; Object.keys(o).forEach(function (k) { if (known.indexOf(k) < 0) e[k] = o[k]; }); return e; }
+  function has(o, k) { return Object.prototype.hasOwnProperty.call(o, k); }
+  // null-prototype objects, so keys such as "__proto__" or "constructor" are plain keys
+  function extras(o, known) { var e = Object.create(null); Object.keys(o).forEach(function (k) { if (known.indexOf(k) < 0) e[k] = o[k]; }); return e; }
   // rows: [values by column, extra keys]; an extra key fills the column of the same name, or gets its own
   function tab(name, cols, rows) {
     cols = cols.slice();
@@ -55,8 +57,8 @@ var LiteExport = (function () {
   }
 
   function tabs(d) {
-    var areas = arr(d.areas), lists = arr(d.lists), people = arr(d.people), sheet = d.sheet && typeof d.sheet === "object" ? d.sheet : {}, names = {}, tn = tabNames(lists);
-    areas.forEach(function (a) { names[v(a.id)] = a.name; });
+    var areas = arr(d.areas), lists = arr(d.lists), people = arr(d.people), sheet = d.sheet && typeof d.sheet === "object" ? d.sheet : {}, names = new Map(), tn = tabNames(lists);
+    areas.forEach(function (a) { names.set(v(a.id), a.name); });
     var settings = SETTINGS.map(function (s) {
       var p = s[1].split("."), val = p[1] ? sheet[p[1]] : p[0] === "lite" && !("lite" in d) ? 1 : d[p[0]];
       return [{ key: s[0], value: val, meaning: s[2] }, {}];
@@ -79,14 +81,14 @@ var LiteExport = (function () {
       tab("Collections", COLLECTIONS, lists.map(function (l, i) {
         var cols = Array.isArray(l.columns) ? l.columns.map(v) : [];
         return [{ id: l.id, name: l.name, tab: tn[i], layout: "table", title_field: cols[0], status_field: cols.filter(function (c) { return hk(c) === "status"; })[0],
-          date_field: cols.filter(function (c) { return /date|deadline|due|renew/.test(hk(c)); })[0], fields: cols.slice(1).join(", "), group: names[v(l.area)] || "Lists",
+          date_field: cols.filter(function (c) { return /date|deadline|due|renew/.test(hk(c)); })[0], fields: cols.slice(1).join(", "), group: names.get(v(l.area)) || "Lists",
           show: "yes", order: i + 1, area: l.area }, extras(l, LIST_KEYS)];
       }).concat([[{ id: "people", name: "People", tab: "People", layout: "table", title_field: "name", fields: "role, area, contact", group: "People", show: "yes", order: lists.length + 1 }, {}]])),
       tab("People", PEOPLE, people.map(function (p) { return [{ name: p.name, role: p.role, area: p.area, contact: p.contact }, extras(p, PEOPLE)]; }))
     ];
     lists.forEach(function (l, i) {
       var cols = Array.isArray(l.columns) ? l.columns.map(v) : [];
-      out.push(tab(tn[i], cols, arr(l.rows).map(function (r) { var row = {}; cols.forEach(function (c) { row[c] = r[c]; }); return [row, extras(r, cols)]; })));
+      out.push(tab(tn[i], cols, arr(l.rows).map(function (r) { var row = Object.create(null); cols.forEach(function (c) { row[c] = has(r, c) ? r[c] : null; }); return [row, extras(r, cols)]; })));
     });
     return out;
   }
@@ -118,7 +120,11 @@ var LiteExport = (function () {
     return X + '<worksheet xmlns="' + MAIN + '"><sheetViews><sheetView workbookViewId="0"><pane ySplit="1" topLeftCell="A2" activePane="bottomLeft" state="frozen"/></sheetView></sheetViews>' +
       (widths.length ? "<cols>" + widths.map(function (w, j) { return '<col min="' + (j + 1) + '" max="' + (j + 1) + '" width="' + w + '" customWidth="1"/>'; }).join("") + "</cols>" : "") + "<sheetData>" + rows.map(function (r, i) {
       return '<row r="' + (i + 1) + '">' + r.map(function (val, j) {
-        return v(val) === "" ? "" : '<c r="' + col(j) + (i + 1) + '" t="inlineStr"' + (i ? "" : ' s="1"') + '><is><t xml:space="preserve">' + x(val) + "</t></is></c>";
+        // numbers and true/false stay numbers and booleans, as openpyxl writes them; everything else is text, never a formula
+        var ref = '<c r="' + col(j) + (i + 1) + '"' + (i ? "" : ' s="1"');
+        if (typeof val === "number" && isFinite(val)) return ref + ' t="n"><v>' + val + "</v></c>";
+        if (typeof val === "boolean") return ref + ' t="b"><v>' + (val ? 1 : 0) + "</v></c>";
+        return v(val) === "" ? "" : ref + ' t="inlineStr"><is><t xml:space="preserve">' + x(val) + "</t></is></c>";
       }).join("") + "</row>";
     }).join("") + "</sheetData></worksheet>";
   }

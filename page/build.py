@@ -47,22 +47,30 @@ def data_block(data: dict) -> str:
 
 
 def fill(shell: str, parts: dict[str, str]) -> str:
-    for key, value in parts.items():
-        marker = "@" + key
-        if shell.count(marker) != 1:
-            sys.exit(f"shell must contain {marker} exactly once")
-        shell = shell.replace(marker, value)
-    return shell
+    """Replace each @KEY marker in one pass, so inserted text is never scanned for markers again."""
+    pattern = re.compile("@(" + "|".join(map(re.escape, parts)) + r")\b")
+    for key in parts:
+        if len(re.findall("@" + re.escape(key) + r"\b", shell)) != 1:
+            sys.exit(f"shell must contain @{key} exactly once")
+    return pattern.sub(lambda m: parts[m.group(1)], shell)
+
+
+def closes(name: str, html: str, expected: int) -> str:
+    """Only the shell's own script tags may close: inlined code or data must never contain a closing script tag."""
+    found = html.lower().count("</script")
+    if found != expected:
+        sys.exit(f"{name}: {found} closing script tags, expected {expected}")
+    return html
 
 
 def build() -> dict[Path, str]:
     css, js = slim(PAGE / "src/render.css"), slim(PAGE / "src/render.js")
     data = json.loads((PAGE / "starter.json").read_text(encoding="utf-8"))
-    template = fill(src(PAGE / "src/template.html") + "\n", {"DATA": data_block(data), "CSS": css, "JS": js})
-    viewer = fill(src(VIEWER / "src/index.html") + "\n", {
+    template = closes("template.html", fill(src(PAGE / "src/template.html") + "\n", {"DATA": data_block(data), "CSS": css, "JS": js}), 2)
+    viewer = closes("viewer/index.html", fill(src(VIEWER / "src/index.html") + "\n", {
         "CSS": css, "JS": js, "EXPORT": slim(VIEWER / "src/export.js"),
         "TEMPLATE": json.dumps(template, ensure_ascii=False).replace("</", "<\\/"),
-    })
+    }), 1)
     return {PAGE / "template.html": template, VIEWER / "index.html": viewer}
 
 

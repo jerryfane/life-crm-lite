@@ -46,17 +46,25 @@ var LiteCRM = (function () {
     if (n < 70) return [Math.round(n / 7), "weeks"];
     return [Math.max(2, Math.round(n / 30.44)), "months"];
   }
+  function has(o, k) { return Object.prototype.hasOwnProperty.call(o, k); }
   // supported repeat forms: daily, weekly, monthly, every N days/weeks/months
   function rule(r) {
     r = txt(r).toLowerCase();
-    var m = { daily: [1, "d"], weekly: [1, "w"], monthly: [1, "m"] }[r];
-    if (m) return m;
-    m = /^every (\d+ )?(day|week|month)s?$/.exec(r);
-    return m ? [m[1] ? +m[1] : 1, m[2][0]] : null;
+    var m = r === "daily" ? "every day" : r === "weekly" ? "every week" : r === "monthly" ? "every month" : r;
+    m = /^every (?:(\d+) )?(day|week|month)s?$/.exec(m);
+    return m && (!m[1] || +m[1] > 0) ? [m[1] ? +m[1] : 1, m[2][0]] : null;
   }
   function occur(base, r, i) {
     if (r[1] === "m") return addM(base, r[0] * i);
     return new Date(base.getFullYear(), base.getMonth(), base.getDate() + i * r[0] * (r[1] === "w" ? 7 : 1));
+  }
+  // first occurrence on or after today, computed (no stepping through the past)
+  function next(base, r, today) {
+    if (base >= today) return base;
+    var k = Math.floor(r[1] === "m" ? ((today.getFullYear() - base.getFullYear()) * 12 + today.getMonth() - base.getMonth()) / r[0]
+      : diff(base, today) / (r[0] * (r[1] === "w" ? 7 : 1))), n = occur(base, r, k);
+    while (n < today) n = occur(base, r, ++k);
+    return n;
   }
   function width(s) {
     if (!ctx) { ctx = document.createElement("canvas").getContext("2d"); }
@@ -64,13 +72,14 @@ var LiteCRM = (function () {
     return Math.ceil(ctx.measureText(s).width) + 4;
   }
 
-  function parse(text) {
+  // strict: the text must be exactly one JSON object (the template's own data block); otherwise the block is found in pasted text
+  function parse(text, strict) {
     text = txt(text);
     if (!text) return { error: "There's nothing here yet. Paste the data block your AI gave you." };
-    var m = /<script[^>]*lite-data[^>]*>([\s\S]*?)<\/script>/i.exec(text);
+    var m = !strict && /<script[^>]*lite-data[^>]*>([\s\S]*?)<\/script>/i.exec(text);
     if (m) text = m[1];
-    var i = text.indexOf("{"), j = text.lastIndexOf("}");
-    if (i < 0 || j < i) return { error: "I can't find a data block here. It starts with { and ends with }. Copy the whole block from your AI and paste it again." };
+    var i = strict ? 0 : text.indexOf("{"), j = strict ? text.length - 1 : text.lastIndexOf("}");
+    if (text[i] !== "{" || text[j] !== "}") return { error: "I can't find a data block here. It starts with { and ends with }. Copy the whole block from your AI and paste it again." };
     var data;
     try { data = JSON.parse(text.slice(i, j + 1)); } catch (e) {
       return { error: "This data block is broken, so I can't read it. Often the end got cut off when copying: copy the whole block again, from the first { to the last }. (Details: " + e.message + ")" };
@@ -81,21 +90,21 @@ var LiteCRM = (function () {
   }
 
   function prep(data, today) {
-    var warn = [], byId = {}, areas = [];
+    var warn = [], byId = new Map(), areas = [];
     data.areas.forEach(function (a, i) {
       if (!a || typeof a !== "object") return;
       var id = txt(a.id || a.name) || "area" + i;
       var x = { id: id, name: txt(a.name) || id, goal: txt(a.goal), color: COLORS.indexOf(txt(a.color).toLowerCase()) >= 0 ? txt(a.color).toLowerCase() : COLORS[i % 9], steps: [] };
-      if (!byId[id]) { byId[id] = x; areas.push(x); }
+      if (!byId.has(id)) { byId.set(id, x); areas.push(x); }
     });
     function area(id) {
       id = txt(id);
-      if (!byId[id]) { byId[id] = { id: id, name: id || "Other", goal: "", color: "gray", steps: [] }; areas.push(byId[id]); }
-      return byId[id];
+      if (!byId.has(id)) { byId.set(id, { id: id, name: id || "Other", goal: "", color: "gray", steps: [] }); areas.push(byId.get(id)); }
+      return byId.get(id);
     }
     var steps = data.steps.filter(function (s) { return s && typeof s === "object"; }).map(function (s) {
       var title = txt(s.title) || "(no title)", st = txt(s.status).toLowerCase(), owner = txt(s.owner);
-      if (!STATUS[st]) { if (st) warn.push("“" + title + "”: status “" + s.status + "” isn't one of todo, doing, waiting, stuck, done; shown as To do."); st = "todo"; }
+      if (!has(STATUS, st)) { if (st) warn.push("“" + title + "”: status “" + s.status + "” isn't one of todo, doing, waiting, stuck, done; shown as To do."); st = "todo"; }
       var x = { title: title, status: st, open: st !== "done", area: area(s.area), who: owner && owner.toLowerCase() !== "me" ? owner : "",
         rep: txt(s.repeat), notes: txt(s.notes), link: txt(s.link), imp: txt(s.importance).toLowerCase(), urg: txt(s.urgency).toLowerCase() };
       ["date", "start", "end"].forEach(function (k) {
@@ -106,10 +115,7 @@ var LiteCRM = (function () {
       else if (a && b && b >= a) { x.a = a; x.b = b; }
       else if (a || b) { x.d = a || b; if (a && b) warn.push("“" + title + "”: the end is before the start; shown at its start."); }
       x.rule = x.rep && x.d ? rule(x.rep) : null;
-      if (x.rule && x.open) { // move a past due date forward to the next occurrence
-        for (var i = 0, n = x.d; n < today && i < 5000; i++) n = occur(x.d, x.rule, i + 1);
-        if (i) x.d = n;
-      }
+      if (x.rule && x.open) x.d = next(x.d, x.rule, today); // a past due date moves to the next occurrence
       x.when = x.d || x.a || null;
       x.area.steps.push(x);
       return x;
@@ -237,7 +243,7 @@ var LiteCRM = (function () {
   function table(cols, heads, rows, today) {
     return '<div class="tw"><table class="t"><thead><tr>' + heads.map(function (c) { return "<th>" + esc(c) + "</th>"; }).join("") + "</tr></thead><tbody>" +
       rows.map(function (r) {
-        return "<tr>" + cols.map(function (c) { var v = txt(r[c]), d = /^\d{4}-\d{2}(-\d{2})?$/.test(v) && day(v); return "<td>" + esc(d ? fmt(d, v.length < 8, today) : v) + "</td>"; }).join("") + "</tr>";
+        return "<tr>" + cols.map(function (c) { var v = has(r, c) ? txt(r[c]) : "", d = /^\d{4}-\d{2}(-\d{2})?$/.test(v) && day(v); return "<td>" + esc(d ? fmt(d, v.length < 8, today) : v) + "</td>"; }).join("") + "</tr>";
       }).join("") + "</tbody></table></div>";
   }
 
