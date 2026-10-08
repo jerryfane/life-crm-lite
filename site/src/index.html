@@ -126,6 +126,14 @@
             <li>Find <b>Google Drive</b> and click <b>Connect</b>. Sign in to your Google account and allow access.</li>
             <li>Do the same for <b>Google Sheets</b>.</li>
           </ol>
+          <h3>Let Claude create files</h3>
+          <p>Out of the box, Google Drive's tools are switched off, so Claude couldn't make your folder or your sheet.</p>
+          <ol>
+            <li>In <b>Customize › Connectors</b>, click <b>Google Drive</b>.</li>
+            <li>Set <b>Read-only tools</b> to <b>Always allow</b>.</li>
+            <li>Under <b>Write/delete tools</b>, allow (the ✓) <b>Create file</b> and <b>Update file</b>. <b>Share file</b> and <b>Trash file</b> can stay on “Needs approval”.</li>
+            <li>Click <b>Google Sheets</b> and set <b>get_values</b>, <b>update_values</b>, <b>get_spreadsheet</b> and <b>update_spreadsheet</b> to <b>Always allow</b>.</li>
+          </ol>
           <h3>Turn them on in your chat</h3>
           <p>In the chat, click <b>+</b> (bottom left of the message box) › <b>Connectors</b>, and switch on <b>Google Drive</b> and <b>Google Sheets</b>. Claude needs both.</p>
           <p class="fine">Editing Google Sheets is a beta in Claude, on the website and the desktop app.</p>
