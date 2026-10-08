@@ -252,8 +252,8 @@ def dashboard_step(mode: str, url: str, has_dashboard: bool) -> dict[str, str]:
         # ── DASHBOARD_MODE: published ──
         button = (f'<a class="btn" href="{attr(url)}" rel="noopener">Open the dashboard</a>' if url
                   else '<span class="btn off" aria-disabled="true">Link coming Saturday</span>')
-        step = ('<ol class="dash-steps"><li>Open the dashboard link, signed in to Claude.</li>'
-                '<li>The first time, it finds your “life CRM” folder in your Drive (or asks for your sheet’s link) and remembers it.</li>'
+        step = ('<ol class="dash-steps"><li>Sign in to <b>claude.ai</b> in this browser first. Then open the dashboard link.</li>'
+                '<li>The first time, it asks for your sheet’s link: paste it. It remembers it, just for you.</li>'
                 '<li>Next time, just open the link. Click <b>Refresh</b> after Claude updates your sheet.</li></ol>'
                 f'<div class="cta">{button}</div>')
         return {"DASHBOARD_START": "", "DASHBOARD_FILE": "", "DASHBOARD_STEP": step}
