@@ -276,9 +276,13 @@ def build(out: Path) -> None:
     index = (SRC / "index.html").read_text()
     template_link = ('<a class="more" href="/page/template.html">See a page</a>' if has_template
                      else '<span class="soon-tag">Example page coming soon</span>')
+    # The skill expects the template as a Project file named exactly template.html.
+    template_download = ('<p class="dl"><a class="btn" href="/page/template.html" download="template.html">Download template.html</a></p>'
+                         if has_template else '<p class="dl"><span class="soon-tag">template.html is coming soon</span></p>')
     index = (index.replace("{{SKILL_NOTE}}", "" if skill else "The skill is coming soon: it will be here before Sunday.")
                   .replace("{{EXAMPLES}}", example_cards(found))
                   .replace("{{TEMPLATE_LINK}}", template_link)
+                  .replace("{{TEMPLATE_DOWNLOAD}}", template_download)
                   .replace("{{SITE_URL}}", SITE_URL))
     leftover = set(re.findall(r"\{\{\w+\}\}", index)) - {"{{SKILL_TEXT}}"}
     if leftover:
