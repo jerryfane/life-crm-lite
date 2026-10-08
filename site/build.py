@@ -250,12 +250,16 @@ def dashboard_step(mode: str, url: str, has_dashboard: bool) -> dict[str, str]:
         sys.exit(f"DASHBOARD_URL must start with https://, not {url!r}")
     if mode == "published":
         # ── DASHBOARD_MODE: published ──
-        button = (f'<a class="btn" href="{attr(url)}" rel="noopener">Open the dashboard</a>' if url
-                  else '<span class="btn off" aria-disabled="true">Link coming Saturday</span>')
+        # Until DASHBOARD_URL is set the dashboard isn't published, so the step promises nothing about it.
+        if not url:
+            step = ('<p class="dash-wip">The dashboard link, and how it connects to your sheet, '
+                    'will be here on Saturday. Until then, the <a href="/dashboard/">preview</a> shows Maya’s example.</p>'
+                    '<div class="cta"><span class="btn off" aria-disabled="true">Link coming Saturday</span></div>')
+            return {"DASHBOARD_START": "", "DASHBOARD_FILE": "", "DASHBOARD_STEP": step}
         step = ('<ol class="dash-steps"><li>Sign in to <b>claude.ai</b> in this browser first. Then open the dashboard link.</li>'
                 '<li>The first time, it asks for your sheet’s link: paste it. It remembers it, just for you.</li>'
                 '<li>Next time, just open the link. Click <b>Refresh</b> after Claude updates your sheet.</li></ol>'
-                f'<div class="cta">{button}</div>')
+                f'<div class="cta"><a class="btn" href="{attr(url)}" rel="noopener">Open the dashboard</a></div>')
         return {"DASHBOARD_START": "", "DASHBOARD_FILE": "", "DASHBOARD_STEP": step}
     # ── DASHBOARD_MODE: copy ──
     download = ('<a class="btn" href="/dashboard/dashboard.html" download="dashboard.html">Download dashboard.html</a>'
