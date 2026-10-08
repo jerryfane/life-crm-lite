@@ -172,10 +172,11 @@ var LiteSource = (function () {
   }
 
   // ---------- the source ----------
-  // The sheet id from a https://docs.google.com/spreadsheets/d/<id>… link, or a bare id; "" for anything else.
+  // The sheet id from a https://docs.google.com/spreadsheets[/u/<n>]/d/<id>… link (the address bar shows /u/0/ when
+  // several Google accounts are signed in), or a bare id; "" for anything else. app.js's Connect form uses this too.
   function sheetIdOf(url) {
     var s = String(url || "").trim();
-    var m = /^https:\/\/docs\.google\.com\/spreadsheets\/d\/([A-Za-z0-9_-]{20,})(?:[/?#]|$)/.exec(s) || /^([A-Za-z0-9_-]{20,})$/.exec(s);
+    var m = /^https:\/\/docs\.google\.com\/spreadsheets\/(?:u\/\d+\/)?d\/([A-Za-z0-9_-]{20,})(?:[/?#]|$)/.exec(s) || /^([A-Za-z0-9_-]{20,})$/.exec(s);
     return m ? m[1] : "";
   }
   function msg(e) { return String((e && e.message) || e); }

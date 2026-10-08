@@ -532,9 +532,9 @@
     if (!sheet && META.source === "embedded") return h("div", { class: "foot" }, sourceLine(), h("span", {}, `Example: ${sheetName()}`));
     const url = sheet && sheet.url || (LITE.sheet && LITE.sheet.url) || "";
     const link = /^https:\/\//.test(url) ? h("a", { href: url, target: "_blank", rel: "noopener" }, sheetName()) : sheetName();
-    return h("div", { class: "foot" }, sourceLine(),
+    return [notice("foot"), h("div", { class: "foot" }, sourceLine(),
       h("span", {}, "Your sheet: ", link, LITE.sheet && LITE.sheet.account ? ` (${LITE.sheet.account})` : "",
-        sheet && SRC.setSheet ? [" · ", h("button", { type: "button", class: "lnk", onclick: changeSheet }, "Change")] : null));
+        sheet && SRC.setSheet ? [" · ", h("button", { type: "button", class: "lnk", onclick: changeSheet }, "Change")] : null))];
   }
   const todayText = () => `today is ${WEEKDAY[TODAY.getDay()]}, ${TODAY.getDate()} ${MONTH[TODAY.getMonth()]}`;
 
@@ -557,9 +557,11 @@
     ["del", "Delegate", "Urgent, less important: hand it off or keep it short."], ["drop", "Drop", "Neither: let it go unless it's quick."],
   ];
   const STATUS_WORD = { doing: "Doing", waiting: "Waiting", stuck: "Stuck", "to book": "To book" };
-  let note = null; // { text } after a failed save, shown until dismissed
-  function notice() {
-    return note ? h("div", { class: "lnote", role: "status" }, h("span", {}, note), h("button", { type: "button", class: "btn sm", onclick: () => { note = null; render(); } }, "OK")) : null;
+  // A note shown until dismissed: { text, at: "top" (Overview, under the Ask box) | "foot" (by the footer's Change), read? }.
+  let note = null;
+  function notice(at) {
+    return note && note.at === at ? h("div", { class: `lnote at-${at}`, role: "status" }, h("span", {}, note.text),
+      h("button", { type: "button", class: "btn sm", onclick: () => { note = null; render(); } }, "OK")) : null;
   }
   async function markDone(s) {
     const raw = LITE.steps.find((x) => x.id === s.id);
@@ -571,7 +573,7 @@
     try { r = await SRC.markDone(s.id); } catch (e) { r = { ok: false, error: String(e && e.message || e) }; }
     if (r && r.ok) return;
     raw.status = was;
-    note = `${r && r.error ? r.error.replace(/\.?$/, ".") : `Couldn't mark "${s.title}" done in your sheet.`} It's back on the list.`;
+    note = { at: "top", text: `${r && r.error ? r.error.replace(/\.?$/, ".") : `Couldn't mark "${s.title}" done in your sheet.`} It's back on the list.` };
     setData(LITE); render();
   }
   function matrix() {
@@ -702,7 +704,7 @@
           h("ul", { class: "list" }, l.map((s) => h("li", withColor(t, { class: "click", onclick: () => go(t.id) }),
             dot(), h("span", {}, s.title), h("span", { class: "w" }, t.name)))))))) : null;
 
-    const panel = h("div", { class: "panel ov" }, top, askBox(), notice(), keys, matrix(), filters, strip, rmap.el,
+    const panel = h("div", { class: "panel ov" }, top, askBox(), notice("top"), keys, matrix(), filters, strip, rmap.el,
       h("div", { class: "row3" }, week, progress, recent), toSchedule, footer());
     return { el: h("div", { class: "page" }, panel), layout: rmap.layout };
   }
@@ -963,24 +965,28 @@
   let gate = window.LiteSource ? "loading" : "", sheet = null;
   const conn = { url: "", err: "", busy: false };
   const sheetName = () => `${(LITE && LITE.owner || DATA && DATA.name || "").split(/\s+/)[0] || "Your"}'s life CRM`.replace(/^Your's/, "Your");
-  // the sheet id from a docs.google.com/spreadsheets/d/<id> link, or ""
-  const sheetId = (s) => ((/^\s*https:\/\/docs\.google\.com\/spreadsheets\/(?:u\/\d+\/)?d\/([\w-]{20,})(?:[/?#]\S*)?\s*$/.exec(s) || [])[1] || "");
+  // the sheet id of a pasted link, or "": LiteSource.sheetIdOf is the one parser (…/spreadsheets[/u/<n>]/d/<id>)
+  const sheetId = (s) => (SRC.sheetIdOf ? SRC.sheetIdOf(s) : "");
   async function connect(ev) {
     ev.preventDefault();
     if (conn.busy) return;
     if (!sheetId(conn.url)) {
-      conn.err = "That isn't a link to a Google Sheet. Open your sheet, copy the address from the browser's address bar (it starts with https://docs.google.com/spreadsheets/d/) and paste it here.";
+      conn.err = "That isn't a link to a Google Sheet. Open your sheet, copy the address from the browser's address bar (it starts with https://docs.google.com/spreadsheets/) and paste it here.";
       return render();
     }
     conn.busy = true; conn.err = ""; render();
     let r;
     try { r = await SRC.setSheet(conn.url.trim()); } catch (e) { r = { ok: false, error: String(e && e.message || e) }; }
-    if (r && r.ok) return refresh(true);
+    if (r && r.ok) return refresh();
     conn.busy = false; conn.err = (r && r.error) || "Couldn't save the link. Try again.";
     render();
   }
+  // Forget the saved link, then show the Connect screen; if the adapter refuses, stay here and say so.
   async function changeSheet() {
-    try { await SRC.setSheet(null); } catch (e) { /* the Connect screen comes next either way */ }
+    let r;
+    try { r = await SRC.setSheet(null); } catch (e) { r = null; }
+    if (!r || !r.ok) { note = { at: "foot", text: "Couldn't forget the saved sheet link. Try again." }; return render(); }
+    if (note && note.at === "foot") note = null;
     sheet = null; conn.url = ""; conn.err = ""; gate = "no_sheet"; route = "";
     render();
   }
@@ -1032,8 +1038,9 @@
     lastRoute = key;
     document.title = key === "roadmap" ? DATA.title : `${title} · ${DATA.title}`;
   }
-  // afterConnect: a read that fails right after Connect goes back to the Connect screen with the reason.
-  async function refresh(afterConnect) {
+  // Only "no_runtime"/"no_sheet", or an error with none of the viewer's data, leave the dashboard. A read error with
+  // their saved copy (source "cache") shows that copy plus a note, also right after Connect.
+  async function refresh() {
     loading = true;
     if (!gate) render();
     let r;
@@ -1041,14 +1048,15 @@
     try { sheet = SRC.getSheet ? await SRC.getSheet() : null; } catch (e) { sheet = null; }
     loading = false; conn.busy = false;
     const err = r && r.error;
+    if (note && note.read) note = null;
     if (err === "no_runtime" || err === "no_sheet") gate = err;
-    else if (sheet && err && (!r.data || r.source === "embedded" || afterConnect === true)) {
+    else if (!(r && r.data && Array.isArray(r.data.areas)) || (err && r.source === "embedded")) {
       // the sheet can't be read and there is no saved copy of it: never show the example as if it were theirs
-      gate = "no_sheet"; conn.url = sheet.url || conn.url; conn.err = err;
+      gate = "no_sheet"; conn.url = sheet && sheet.url || conn.url; conn.err = err || "Couldn't read your sheet. Try again.";
     } else {
       gate = "";
-      if (r && r.data && Array.isArray(r.data.areas)) setData(r.data, { source: r.source, at: r.at, error: err });
-      else META = { ...META, error: err || "no data" };
+      setData(r.data, { source: r.source, at: r.at, error: err });
+      if (err) note = { at: "top", read: true, text: `${err.replace(/\.?$/, ".")} Showing your saved copy from ${relTime(r.at)}.` };
     }
     render();
   }
