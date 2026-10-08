@@ -1,0 +1,52 @@
+{
+  "lite": 1,
+  "title": "Maya's plan",
+  "owner": "Maya",
+  "updated": "2026-10-11",
+  "tone": "kick",
+  "toneLine": "Three Surgery II assignments are due Tuesday. Phone down, case study 2 first.",
+  "sheet": { "url": "https://docs.google.com/spreadsheets/d/EXAMPLE-maya", "account": "maya.lindqvist@example.com" },
+  "areas": [
+    { "id": "school", "name": "Medical school", "color": "teal", "goal": "M.D. in May 2027", "why": "Finish the rotations without falling behind on the assignments" },
+    { "id": "research", "name": "Research & papers", "color": "indigo", "goal": "2 papers by the end of 2026", "why": "Papers make the residency application much stronger" },
+    { "id": "residency", "name": "Residency 2027", "color": "amber", "goal": "Apply in September 2027", "why": "A US program that takes international graduates" },
+    { "id": "health", "name": "Health", "color": "green", "goal": "Book the appointments I keep putting off", "why": "" }
+  ],
+  "steps": [
+    { "id": "s1", "area": "school", "title": "Urology rotation (Surgery II)", "status": "doing", "owner": "me", "date": null, "start": "2026-09-28", "end": "2026-10-23", "repeat": null, "importance": "high", "urgency": "high", "notes": "Harbor View Teaching Hospital", "link": "" },
+    { "id": "s2", "area": "school", "title": "Case studies 2, 3 and 4", "status": "doing", "owner": "me", "date": "2026-10-13", "start": null, "end": null, "repeat": null, "importance": "high", "urgency": "high", "notes": "Case study 1 is done", "link": "" },
+    { "id": "s3", "area": "school", "title": "Ethics review and evidence-based medicine assignment", "status": "todo", "owner": "me", "date": "2026-10-13", "start": null, "end": null, "repeat": null, "importance": "high", "urgency": "high", "notes": "", "link": "" },
+    { "id": "s4", "area": "school", "title": "Surgery II exams", "status": "todo", "owner": "me", "date": "2026-10-22", "start": null, "end": null, "repeat": null, "importance": "high", "urgency": "high", "notes": "", "link": "" },
+    { "id": "s5", "area": "school", "title": "Internal Medicine II rotation", "status": "todo", "owner": "me", "date": null, "start": "2026-10-26", "end": "2026-12-18", "repeat": null, "importance": "high", "urgency": "low", "notes": "", "link": "" },
+    { "id": "s6", "area": "school", "title": "Renew the hospital parking permit", "status": "todo", "owner": "me", "date": "2026-10-15", "start": null, "end": null, "repeat": null, "importance": "low", "urgency": "high", "notes": "The department office can do it if she sends them the form", "link": "" },
+    { "id": "s7", "area": "research", "title": "Dr. Navarro to confirm she supervises and signs paper 1", "status": "waiting", "owner": "Dr. Navarro", "date": "2026-10-16", "start": null, "end": null, "repeat": null, "importance": "high", "urgency": "high", "notes": "Emailed on 2 October, no reply yet. Ask in person on Friday if still silent.", "link": "" },
+    { "id": "s8", "area": "research", "title": "Write up the vitamin D paper", "status": "doing", "owner": "me", "date": null, "start": "2026-10-12", "end": "2026-12-15", "repeat": null, "importance": "high", "urgency": "low", "notes": "The 140-case study is finished; only the write-up is left", "link": "" },
+    { "id": "s9", "area": "research", "title": "Abstract to the regional conference", "status": "todo", "owner": "me", "date": "2026-11-14", "start": null, "end": null, "repeat": null, "importance": "high", "urgency": "low", "notes": "", "link": "" },
+    { "id": "s10", "area": "research", "title": "Find a case for a case report", "status": "stuck", "owner": "me", "date": null, "start": null, "end": null, "repeat": null, "importance": "high", "urgency": "low", "notes": "No case with patient consent yet. Ask the urology registrar.", "link": "" },
+    { "id": "s11", "area": "research", "title": "Tidy up the reference manager", "status": "todo", "owner": "me", "date": null, "start": null, "end": null, "repeat": null, "importance": "low", "urgency": "low", "notes": "", "link": "" },
+    { "id": "s12", "area": "residency", "title": "Program list: USA and Europe", "status": "doing", "owner": "me", "date": null, "start": "2026-10-05", "end": "2026-12-20", "repeat": null, "importance": "high", "urgency": "low", "notes": "3 shortlisted so far", "link": "" },
+    { "id": "s13", "area": "residency", "title": "Send the letter request forms to Dr. Grant and Dr. Chen", "status": "todo", "owner": "me", "date": "2026-10-20", "start": null, "end": null, "repeat": null, "importance": "high", "urgency": "low", "notes": "Both already said yes", "link": "" },
+    { "id": "s14", "area": "residency", "title": "Book the licensing exam", "status": "todo", "owner": "me", "date": "2026-11", "start": null, "end": null, "repeat": null, "importance": "high", "urgency": "low", "notes": "Step 2 CK", "link": "" },
+    { "id": "s15", "area": "residency", "title": "Submit residency applications", "status": "todo", "owner": "me", "date": "2027-09-15", "start": null, "end": null, "repeat": null, "importance": "high", "urgency": "low", "notes": "", "link": "" },
+    { "id": "s16", "area": "residency", "title": "Two US electives done (Florida and California)", "status": "done", "owner": "me", "date": "2026-08-31", "start": null, "end": null, "repeat": null, "importance": "high", "urgency": "low", "notes": "", "link": "" },
+    { "id": "s17", "area": "health", "title": "Book the dentist", "status": "todo", "owner": "me", "date": "2026-10-31", "start": null, "end": null, "repeat": null, "importance": "high", "urgency": "low", "notes": "A year overdue", "link": "" },
+    { "id": "s18", "area": "health", "title": "Yoga class with Sara", "status": "todo", "owner": "me", "date": "2026-10-14", "start": null, "end": null, "repeat": "weekly", "importance": "low", "urgency": "low", "notes": "Wednesdays, 7 pm", "link": "" }
+  ],
+  "lists": [
+    { "id": "programs", "name": "Programs", "area": "residency", "columns": ["program", "country", "specialty", "deadline", "status"], "rows": [
+      { "program": "Lakeshore University Hospital", "country": "USA", "specialty": "Internal Medicine", "deadline": "2027-09", "status": "shortlisted" },
+      { "program": "Bayside Family Medicine Program", "country": "USA", "specialty": "Family Medicine", "deadline": "2027-09", "status": "shortlisted" },
+      { "program": "Riverside Community Program", "country": "USA", "specialty": "Family Medicine", "deadline": "2027-09", "status": "shortlisted" }
+    ] },
+    { "id": "papers", "name": "Papers", "area": "research", "columns": ["paper", "type", "status", "supervisor"], "rows": [
+      { "paper": "Vitamin D and recovery after appendectomy", "type": "Original article", "status": "writing", "supervisor": "Dr. Navarro" },
+      { "paper": "A case from the urology rotation", "type": "Case report", "status": "idea", "supervisor": "" }
+    ] }
+  ],
+  "people": [
+    { "name": "Dr. Navarro", "role": "Supervises paper 1", "area": "research", "contact": "" },
+    { "name": "Dr. Grant", "role": "Letter of recommendation (Florida elective)", "area": "residency", "contact": "" },
+    { "name": "Dr. Chen", "role": "Letter of recommendation (California elective)", "area": "residency", "contact": "" },
+    { "name": "Sara", "role": "Classmate, yoga on Wednesdays", "area": "health", "contact": "" }
+  ]
+}

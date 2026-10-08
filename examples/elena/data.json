@@ -1,0 +1,46 @@
+{
+  "lite": 1,
+  "title": "Elena's plan",
+  "owner": "Elena",
+  "updated": "2026-10-11",
+  "tone": "caring",
+  "toneLine": "You don't have to do it all this week. Pick the paint colour today and let the rest wait.",
+  "sheet": { "url": "https://docs.google.com/spreadsheets/d/EXAMPLE-elena", "account": "elena.rossi@example.com" },
+  "areas": [
+    { "id": "home", "name": "Home", "color": "orange", "goal": "Living room painted and guest room ready before Giulia arrives on 6 November", "why": "First visit in three years; I want the flat to feel like mine" },
+    { "id": "money", "name": "Money", "color": "green", "goal": "Stop paying for things I don't use, and get the paperwork done", "why": "Feels like money leaks every month" },
+    { "id": "health", "name": "Health", "color": "pink", "goal": "Keep the routines that make me feel good", "why": "" }
+  ],
+  "steps": [
+    { "id": "s1", "area": "home", "title": "Get two quotes from painters", "status": "done", "owner": "me", "date": "2026-10-05", "start": null, "end": null, "repeat": null, "importance": "high", "urgency": "high", "notes": "Marco was cheaper and can come sooner", "link": "" },
+    { "id": "s2", "area": "home", "title": "Choose the colour for the living room", "status": "todo", "owner": "me", "date": "2026-10-16", "start": null, "end": null, "repeat": null, "importance": "high", "urgency": "high", "notes": "Between warm white and the pale green sample. Marco needs it a week before he starts.", "link": "" },
+    { "id": "s3", "area": "home", "title": "Marco confirms the painting dates", "status": "waiting", "owner": "Marco", "date": "2026-10-14", "start": null, "end": null, "repeat": null, "importance": "high", "urgency": "high", "notes": "He said probably 26 to 28 October. Call him on Wednesday if he hasn't confirmed.", "link": "" },
+    { "id": "s4", "area": "home", "title": "Living room painted", "status": "todo", "owner": "Marco", "date": null, "start": "2026-10-26", "end": "2026-10-28", "repeat": null, "importance": "high", "urgency": "low", "notes": "Move the bookshelf the weekend before", "link": "" },
+    { "id": "s5", "area": "home", "title": "Clear out and clean the guest room", "status": "todo", "owner": "me", "date": "2026-11-04", "start": null, "end": null, "repeat": null, "importance": "low", "urgency": "high", "notes": "Could ask Luca to carry the boxes to the cellar", "link": "" },
+    { "id": "s6", "area": "home", "title": "Giulia arrives", "status": "todo", "owner": "me", "date": "2026-11-06", "start": null, "end": null, "repeat": null, "importance": "high", "urgency": "low", "notes": "Staying until 10 November", "link": "" },
+    { "id": "s7", "area": "money", "title": "Review subscriptions and cancel what I don't use", "status": "todo", "owner": "me", "date": "2026-10-25", "start": null, "end": null, "repeat": null, "importance": "high", "urgency": "high", "notes": "See the Subscriptions list. The gym renews on 1 November.", "link": "" },
+    { "id": "s8", "area": "money", "title": "Sign the will", "status": "todo", "owner": "me", "date": null, "start": null, "end": null, "repeat": null, "importance": "high", "urgency": "low", "notes": "The lawyer sent the final draft; it needs an appointment to sign it in her office. No deadline.", "link": "" },
+    { "id": "s9", "area": "money", "title": "Move savings to the higher-interest account", "status": "stuck", "owner": "me", "date": null, "start": null, "end": null, "repeat": null, "importance": "high", "urgency": "low", "notes": "The bank app keeps rejecting the ID photo. Try at the branch.", "link": "" },
+    { "id": "s10", "area": "money", "title": "Sort the paper folder of old bills", "status": "todo", "owner": "me", "date": null, "start": null, "end": null, "repeat": null, "importance": "low", "urgency": "low", "notes": "", "link": "" },
+    { "id": "s11", "area": "health", "title": "Pedicure", "status": "todo", "owner": "me", "date": "2026-10-16", "start": null, "end": null, "repeat": "every 2 weeks", "importance": "high", "urgency": "low", "notes": "Friday afternoons at the salon on Via Roma", "link": "" },
+    { "id": "s12", "area": "health", "title": "Yearly blood test", "status": "waiting", "owner": "Dr. Weiss", "date": "2026-10-20", "start": null, "end": null, "repeat": null, "importance": "high", "urgency": "low", "notes": "Waiting for the referral from the GP", "link": "" },
+    { "id": "s13", "area": "health", "title": "Swim at the pool", "status": "doing", "owner": "me", "date": "2026-10-13", "start": null, "end": null, "repeat": "weekly", "importance": "high", "urgency": "low", "notes": "Tuesday mornings", "link": "" }
+  ],
+  "lists": [
+    { "id": "subscriptions", "name": "Subscriptions", "area": "money", "columns": ["subscription", "cost", "renews", "decision"], "rows": [
+      { "subscription": "Gym membership", "cost": "€39 / month", "renews": "2026-11-01", "decision": "cancel" },
+      { "subscription": "Streaming service A", "cost": "€13 / month", "renews": "2026-10-19", "decision": "keep" },
+      { "subscription": "Streaming service B", "cost": "€9 / month", "renews": "2026-10-27", "decision": "cancel" },
+      { "subscription": "Cloud storage", "cost": "€2 / month", "renews": "2026-10-30", "decision": "keep" },
+      { "subscription": "Cooking magazine", "cost": "€48 / year", "renews": "2027-01-15", "decision": "check" },
+      { "subscription": "Language app", "cost": "€80 / year", "renews": "2026-12-03", "decision": "check" }
+    ] }
+  ],
+  "people": [
+    { "name": "Marco", "role": "Painter, living room", "area": "home", "contact": "" },
+    { "name": "Giulia", "role": "Friend visiting 6–10 November", "area": "home", "contact": "" },
+    { "name": "Luca", "role": "Neighbour, can help carry boxes", "area": "home", "contact": "" },
+    { "name": "Avv. Bianchi", "role": "Lawyer, has the will ready to sign", "area": "money", "contact": "" },
+    { "name": "Dr. Weiss", "role": "GP, referral for the blood test", "area": "health", "contact": "" }
+  ]
+}
