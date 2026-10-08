@@ -2,12 +2,13 @@
 <html lang="en">
 <head>
 <meta charset="utf-8">
+<meta http-equiv="Content-Security-Policy" content="@CSP">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>My life CRM</title>
 <link rel="icon" href="data:,">
 <!-- life-crm lite page: https://github.com/jerryfane/life-crm-lite (AGPL-3.0).
-     To update this page, replace ONLY the JSON inside the lite-data script just below. Leave everything else exactly as it is.
-     Inside the JSON, write every "<" as \u003c. -->
+     To update this page, replace ONLY the JSON inside the lite-data script just below. Leave everything else exactly as it is,
+     including the Content-Security-Policy line (it lets only this page's own code run). Inside the JSON, write every "<" as \u003c. -->
 <script type="application/json" id="lite-data">
 @DATA
 </script>
@@ -15,18 +16,25 @@
 @CSS</style>
 </head>
 <body>
-<div id="lite"></div>
+<div id="lite"><div class="lc-err">This page couldn't start. If your AI made it, ask it to copy template.html again exactly, changing only the data block.</div></div>
 <script>
 @JS
 (function () {
-  // Draw only from the one data block, and refuse if a second block or a script appears between it and this one
-  // (what a raw closing script tag left in the JSON would produce).
-  var el = document.getElementById("lite"), all = document.scripts, me = document.currentScript || all[all.length - 1];
-  var block = document.getElementById("lite-data"), ok = !!block && block.tagName === "SCRIPT" && document.querySelectorAll("#lite-data").length === 1;
-  if (ok) [].forEach.call(all, function (s) { if (s !== block && s !== me && block.compareDocumentPosition(s) & 4 && s.compareDocumentPosition(me) & 4) ok = false; });
-  if (!ok) { [].slice.call(document.body.childNodes).forEach(function (n) { if (n.nodeName !== "STYLE") n.remove(); }); document.body.appendChild(el); return LiteCRM.fail(el, "This page was changed outside its data block (an extra script or a second data block), so it isn't safe to show. Ask your AI to start again from template.html and replace only the JSON between the lite-data tags, writing every < as \\u003c."); }
-  var r = LiteCRM.parse(block.textContent, true);
-  if (r.error) LiteCRM.fail(el, "The data block in this page has a problem. " + r.error); else LiteCRM.mount(el, r.data);
+  // The page must hold exactly two scripts: the lite-data block and this one. Anything else means the page was
+  // changed outside its data block (for example a raw closing script tag inside the JSON), so refuse to draw.
+  var el = document.getElementById("lite"), me = document.currentScript;
+  function go() {
+    var all = document.scripts, block = document.getElementById("lite-data");
+    var ok = all.length === 2 && !!block && block.tagName === "SCRIPT" && block.type === "application/json" && document.querySelectorAll("[id='lite-data']").length === 1 &&
+      [].every.call(all, function (s) { return s === block || s === me; });
+    if (!ok) {
+      [].slice.call(document.body.childNodes).forEach(function (n) { if (n !== el) n.remove(); });
+      return LiteCRM.fail(el, "This page was changed outside its data block (an extra script or a second data block), so it isn't safe to show. Ask your AI to start again from template.html and replace only the JSON between the lite-data tags, writing every < as \\u003c.");
+    }
+    var r = LiteCRM.parse(block.textContent, true);
+    if (r.error) LiteCRM.fail(el, "The data block in this page has a problem. " + r.error); else LiteCRM.mount(el, r.data);
+  }
+  if (document.readyState === "loading") document.addEventListener("DOMContentLoaded", go); else go();
 })();
 </script>
 </body>

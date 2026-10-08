@@ -7,9 +7,13 @@
 Sources: page/src/render.js + render.css (the page itself, shared), page/src/template.html (the page shell),
 viewer/src/index.html + export.js (the viewer). The template ships with page/starter.json, an almost empty data block.
 The viewer embeds the finished template so "Download my page" gives exactly the same file.
+Each page carries a Content-Security-Policy that lets only its own inline script run (by SHA-256 hash), so a raw
+script injected into the data block, by an AI or by hand, can't run.
 """
 from __future__ import annotations
 
+import base64
+import hashlib
 import json
 import re
 import sys
@@ -63,14 +67,38 @@ def closes(name: str, html: str, expected: int) -> str:
     return html
 
 
+CODE = re.compile(r"<script>(.*?)</script>", re.S)  # the page's one executable script (data blocks have a type)
+
+
+def sha256(text: str) -> str:
+    return "sha256-" + base64.b64encode(hashlib.sha256(text.encode("utf-8")).digest()).decode()
+
+
+def csp(script_hash: str) -> str:
+    # inline styles and style attributes, the data: favicon, and only this exact script; nothing is fetched
+    return f"default-src 'none'; script-src '{script_hash}'; style-src 'unsafe-inline'; img-src data:; base-uri 'none'; form-action 'none'"
+
+
+def page(name: str, shell: str, parts: dict[str, str], closing: int) -> str:
+    """Fill the shell and put the hash of its filled script into the @CSP marker."""
+    scripts = CODE.findall(shell)
+    if len(scripts) != 1:
+        sys.exit(f"{name}: the shell must have exactly one <script> without attributes")
+    body = fill(scripts[0], {k: v for k, v in parts.items() if re.search("@" + re.escape(k) + r"\b", scripts[0])})
+    html = closes(name, fill(shell, {**parts, "CSP": csp(sha256(body))}), closing)
+    if CODE.findall(html) != [body]:
+        sys.exit(f"{name}: the built script doesn't match the hashed one")
+    return html
+
+
 def build() -> dict[Path, str]:
     css, js = slim(PAGE / "src/render.css"), slim(PAGE / "src/render.js")
     data = json.loads((PAGE / "starter.json").read_text(encoding="utf-8"))
-    template = closes("template.html", fill(src(PAGE / "src/template.html") + "\n", {"DATA": data_block(data), "CSS": css, "JS": js}), 2)
-    viewer = closes("viewer/index.html", fill(src(VIEWER / "src/index.html") + "\n", {
+    template = page("template.html", src(PAGE / "src/template.html") + "\n", {"DATA": data_block(data), "CSS": css, "JS": js}, 2)
+    viewer = page("viewer/index.html", src(VIEWER / "src/index.html") + "\n", {
         "CSS": css, "JS": js, "EXPORT": slim(VIEWER / "src/export.js"),
         "TEMPLATE": json.dumps(template, ensure_ascii=False).replace("</", "<\\/"),
-    }), 1)
+    }, 1)
     return {PAGE / "template.html": template, VIEWER / "index.html": viewer}
 
 

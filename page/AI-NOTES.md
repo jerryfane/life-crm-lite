@@ -2,6 +2,8 @@
 
 `template.html` is one self-contained page (no outside scripts, fonts or requests). Change **only** the JSON between
 `<script type="application/json" id="lite-data">` and `</script>`. Never touch the styles, code or anything else.
+Keep the `Content-Security-Policy` line and the code exactly as they are, character for character: the policy lets only
+that exact code run, so any change to either one makes the page show "This page couldn't start".
 
 ## Show it
 
@@ -26,4 +28,5 @@ Update the sheet first (it's the real data). Then rewrite only the data block: c
 - Area `color`: teal, indigo, amber, blue, pink, green, violet, red, orange, gray.
 - No secrets or tokens.
 
-A yellow box on the page means the JSON is broken or a value is unreadable; fix the JSON only.
+A yellow box on the page means the JSON is broken or a value is unreadable: fix the JSON only. "This page couldn't start"
+or "changed outside its data block" means the rest of the file was changed: copy `template.html` again and replace only the JSON.

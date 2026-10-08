@@ -2,6 +2,7 @@
 <html lang="en">
 <head>
 <meta charset="utf-8">
+<meta http-equiv="Content-Security-Policy" content="@CSP">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>life-crm lite viewer</title>
 <link rel="icon" href="data:,">
@@ -100,7 +101,10 @@
   $("vcancel").onclick = function () { mode(true); };
   $("vclear").onclick = function () {
     if (!confirm("Remove your data from this browser? Download your page first if you want to keep it.")) return;
-    store.set(null); data = null; LiteCRM.fail(out, ""); out.innerHTML = ""; $("vin").value = ""; mode(false);
+    store.set(null);
+    // only say it's gone once the saved copy really is
+    if (store.get() !== null) return say("Couldn't clear the saved copy on this laptop. Clear your browser's site data to remove it.");
+    data = null; LiteCRM.fail(out, ""); out.innerHTML = ""; $("vin").value = ""; mode(false);
   };
   $("vdown").onclick = function () {
     var json = JSON.stringify(data, null, 2).replace(/</g, "\\u003c");
