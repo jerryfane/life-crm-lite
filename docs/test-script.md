@@ -5,7 +5,7 @@ Goal: run the skill once in Claude and once in ChatGPT, as a participant would. 
 Room page: https://life-crm-lite.jerryfane.com
 
 ## A. Claude (Pro), about 20 min
-1. On the room page, open the **Claude** tab and follow "Make the Project": create a new Project, and paste the skill (use the **Copy the skill** button) into its instructions.
+1. On the room page, open the **Claude** tab and follow "Make the Project": create a new Project, and paste the short instructions (use the **Copy the instructions** button) into its instructions. Claude loads the full skill by itself.
 2. Start a chat in that Project. Say "Hi".
 3. Answer the plan question: **Claude Pro**.
 4. Talk: paste the Maya transcript from the room page (Examples → Maya), or talk about your own week for 2 minutes.

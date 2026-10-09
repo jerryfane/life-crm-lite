@@ -7,9 +7,11 @@
 Required:
     site/src/            the room page (index.html), the shell of the other pages (shell.html), style.css, room.js,
                          dashboard-maya.webp (the hero picture: /dashboard/ with Maya's example, 2560x1600)
+    skill/PROJECT.md     the short Project instructions: copied by the big button and shown next to it;
+                         they must contain both SKILL_URLS, where Claude loads the full skill from
 
 Optional inputs (the build works without each one and shows "coming soon"):
-    skill/SKILL.md       the skill: copied by the big button, shown at /skill/, raw at /SKILL.md
+    skill/SKILL.md       the full skill: shown at /skill/, raw at /SKILL.md (what Claude fetches, served unchanged)
     dashboard/dist/dashboard.html   the dashboard: a preview at /dashboard/ (example data without Claude), and
                                     /dashboard/dashboard.html, the fallback download when Claude can't fetch it
     viewer/              the viewer: copied to /viewer/
@@ -18,7 +20,7 @@ Optional inputs (the build works without each one and shows "coming soon"):
 
 Output layout:
     /                    room page
-    /skill/  /SKILL.md   the skill, readable and raw (/skill.txt: the same raw text, shown by every browser)
+    /skill/  /SKILL.md   the full skill, readable and raw (/skill.txt: the same raw text, shown by every browser)
     /viewer/             viewer (or a "coming soon" page)
     /dashboard/          the dashboard preview, when it exists
     /examples/<name>/    each example transcript, plus its data files
@@ -42,6 +44,8 @@ HERE = Path(__file__).resolve().parent
 ROOT = HERE.parent
 SRC = HERE / "src"
 SITE_URL = "https://life-crm-lite.jerryfane.com/"
+# PROJECT.md tells Claude to fetch the skill from the first URL, or with curl from the second.
+SKILL_URLS = (SITE_URL + "SKILL.md", "https://raw.githubusercontent.com/jerryfane/life-crm-lite/main/skill/SKILL.md")
 SRC_FILES = ("index.html", "shell.html", "style.css", "room.js", "dashboard-maya.webp")
 EXAMPLE_NAME = re.compile(r"[a-z0-9-]+")  # used in URLs and file paths, so kept plain
 
@@ -262,7 +266,16 @@ def build(out: Path, root: Path = ROOT) -> None:
     for name in ("style.css", "room.js", "dashboard-maya.webp"):
         shutil.copy2(SRC / name, out / name)
 
-    # The skill: the big button copies it, /skill/ shows it, /SKILL.md is the raw file.
+    # The short Project instructions: the big button copies them; they load the full skill from SKILL_URLS.
+    project_md = root / "skill" / "PROJECT.md"
+    if not project_md.is_file():
+        sys.exit("skill/PROJECT.md is required: it's what people paste as their Project's instructions.")
+    project = project_md.read_text()
+    missing_urls = [u for u in SKILL_URLS if u not in project]
+    if missing_urls:
+        sys.exit(f"skill/PROJECT.md must contain {' and '.join(missing_urls)}: Claude loads the skill from there.")
+
+    # The full skill: /skill/ shows it, /SKILL.md is the raw file Claude fetches.
     skill_md = root / "skill" / "SKILL.md"
     if skill_md.is_file():
         skill = skill_md.read_text()
@@ -270,11 +283,9 @@ def build(out: Path, root: Path = ROOT) -> None:
         shutil.copy2(skill_md, out / "SKILL.md")
         shutil.copy2(skill_md, out / "skill.txt")
         page("The skill", '<section class="doc"><p class="crumb"><a href="/">Room page</a></p>'
-                          '<div class="doc-bar"><h1>The skill</h1>'
-                          '<button class="btn copy-skill" type="button" data-copy-skill>Copy the skill</button></div>'
-                          '<p class="copied" data-copied role="status"></p>'
-                          '<p class="lead">This is what you paste into your Project’s instructions. You don’t need to read it: the button copies all of it.</p>'
-                          f'<textarea class="skill-text" data-skill hidden readonly>\n{html.escape(skill)}</textarea>'
+                          '<h1>The skill</h1>'
+                          '<p class="lead">Claude loads this at the start of every chat in your Project. You don’t paste it: '
+                          'you paste the short instructions from the <a href="/">room page</a>.</p>'
                           f'<div class="md">{shown}</div></section>', out / "skill" / "index.html")
     else:
         skill = ""
@@ -333,8 +344,9 @@ def build(out: Path, root: Path = ROOT) -> None:
 
     index = fill((SRC / "index.html").read_text(), {
         "SKILL_NOTE": "" if skill else "The skill is coming soon: it will be here before Sunday.",
-        # The parser drops one newline right after <textarea>, so keep the skill's first line intact.
-        "SKILL_TEXT": "\n" + html.escape(skill),
+        # The parser drops one newline right after <textarea>, so keep the first line intact.
+        "PROJECT_TEXT": "\n" + html.escape(project),
+        "PROJECT_SHOWN": html.escape(project.strip()),
         "EXAMPLES": example_cards(found),
         "DASHBOARD_STEP": dashboard_step(has_dashboard, has_sheet_flow),
         "SITE_URL": attr(SITE_URL),

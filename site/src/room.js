@@ -1,5 +1,5 @@
 (() => {
-  // Copy the skill: the full text sits in a hidden <textarea data-skill>, so the copy needs no network.
+  // Copy the Project instructions: the text sits in a hidden <textarea data-skill>, so the copy needs no network.
   const copyText = async (text) => {
     try { await navigator.clipboard.writeText(text); return true; } catch (_) {}
     const ta = document.createElement('textarea');
@@ -20,8 +20,8 @@
       btn.classList.toggle('ok', ok);
       if (status) status.classList.toggle('ok', ok);
       if (status) status.textContent = ok
-        ? 'Copied. Now paste it as the instructions of a new Project in Claude.'
-        : 'Your browser blocked copying. Open life-crm-lite.jerryfane.com/skill.txt, select all the text and copy it.';
+        ? 'Copied. Paste it as the instructions of a new Claude Project.'
+        : 'Your browser blocked copying. Select the instructions below and copy them.';
       clearTimeout(btn._t);
       btn._t = setTimeout(() => { btn.innerHTML = label; btn.classList.remove('ok'); }, 2500);
     });

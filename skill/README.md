@@ -1,8 +1,10 @@
 # The life-crm lite skill
 
-`SKILL.md` is the whole skill: paste it as a Project's instructions. It needs **Claude Pro or Max** (the dashboard reads Google Drive through Claude); on any other plan it says so and points to the backup viewer, https://life-crm-lite.jerryfane.com/viewer/. Step by step with pictures: https://life-crm-lite.jerryfane.com
+`PROJECT.md` is what people paste as their Project's instructions: five lines that tell Claude to load `SKILL.md`, the whole skill, at the start of every chat (from https://life-crm-lite.jerryfane.com/SKILL.md with web fetch, or with curl from raw.githubusercontent.com). The skill needs **Claude Pro or Max** (the dashboard reads Google Drive through Claude); on any other plan it says so and points to the backup viewer, https://life-crm-lite.jerryfane.com/viewer/. Step by step with pictures: https://life-crm-lite.jerryfane.com
 
-**Setup** (claude.ai): **Projects** > **+ New Project**, name it `life-crm` > **Set project instructions**, paste `SKILL.md`, **Save instructions**. In **Settings > Capabilities**, turn on **Code execution and file creation**. Then start a chat in the Project.
+**Updates.** `SKILL.md` is loaded live, so a change reaches everyone on their next chat: merge it to `main` (the curl fallback reads `main`) and deploy the site (`site/deploy.sh`, which serves `/SKILL.md` unchanged). Nobody re-pastes anything. `PROJECT.md` itself only changes if the URLs do; then people must paste it again.
+
+**Setup** (claude.ai): **Projects** > **+ New Project**, name it `life-crm` > **Set project instructions**, paste `PROJECT.md` (the room page's **Copy the instructions** button), **Save instructions**. In **Settings > Capabilities**, turn on **Code execution and file creation**. Then start a chat in the Project.
 
 What the person gets: a Google Drive folder "<Name>'s life CRM" with the sheet ([docs/sheet-format.md](../docs/sheet-format.md)), one subfolder per area, and `GUIDE.md` (written by Claude from their data, following the outline in step 5); the dashboard, which reads the sheet live ([docs/artifact-api.md](../docs/artifact-api.md)); and this Project as their assistant.
 
