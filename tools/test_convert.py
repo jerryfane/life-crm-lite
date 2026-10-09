@@ -212,6 +212,21 @@ class Layouts(unittest.TestCase):
         self.assertNotIn("layout", self.papers(round_trip(data)))  # the default: written, not brought back
         self.assertEqual(convert.diff(maya(), round_trip(maya())), [])
 
+    def test_board_status_column_is_read_like_any_header(self):
+        data = maya()
+        papers = self.papers(data)
+        papers["columns"] = ["paper", "type", "Status (stage)", "supervisor"]
+        papers["rows"] = [{"paper": r["paper"], "type": r["type"], "Status (stage)": r["status"], "supervisor": r["supervisor"]}
+                          for r in papers["rows"]]
+        papers.update(layout="board", statuses="idea, writing")
+        self.assertEqual(convert.validate(data), [])
+        with tempfile.TemporaryDirectory() as tmp:
+            wb = load_workbook(save(data, tmp))
+            head = [c.value for c in wb["Collections"][1]]
+            row = next(r for r in wb["Collections"].iter_rows(min_row=2, values_only=True) if r[0] == "papers")
+            self.assertEqual(row[head.index("status_field")], "Status (stage)")
+            self.assertEqual(convert.diff(data, convert.from_workbook(wb)), [])
+
     def test_unknown_layout_board_without_status_and_list_statuses_are_invalid(self):
         data = maya()
         self.papers(data)["layout"] = "kanban"

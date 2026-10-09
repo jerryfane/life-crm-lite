@@ -1,5 +1,6 @@
 // A small headless-Chrome driver for the dashboard tests (Chrome DevTools Protocol over Node 22's built-in WebSocket).
 // open(html, width) loads a page from a temp file; run(expr) evaluates in it (promises awaited) and returns the value;
+// shot(clip) is a PNG of a region;
 // errors lists console errors, exceptions and failed loads since open(); requests lists every URL the page asked for.
 // No Chrome on this machine: `available` is false and the tests that need it skip.
 "use strict";
@@ -51,6 +52,11 @@ async function launch() {
       const r = await send("Runtime.evaluate", { expression: expr, awaitPromise: true, returnByValue: true });
       if (r.result.exceptionDetails) throw new Error(r.result.exceptionDetails.exception?.description || r.result.exceptionDetails.text);
       return r.result.result.value;
+    },
+    // PNG (base64) of a page region in CSS pixels, scrolled or not; the same pixels give the same string
+    async shot(clip) {
+      const r = await send("Page.captureScreenshot", { format: "png", captureBeyondViewport: true, clip: { ...clip, scale: 1 } });
+      return r.result.data;
     },
     async key(k) { // a real key press, so focus and keydown handlers run as for a person
       const code = { ArrowRight: 39, ArrowLeft: 37, End: 35, Home: 36 }[k];

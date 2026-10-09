@@ -89,6 +89,7 @@ class Build(unittest.TestCase):
         (self.tmp / "dashboard" / "dist").mkdir(parents=True)
         body = "<!doctype html><title>d</title>" + ("<script>LiteSource.setSheet</script>" if sheet_flow else "")
         (self.tmp / "dashboard" / "dist" / "dashboard.html").write_text(body)
+        (self.tmp / "dashboard" / "dist" / "proposals.html").write_text("<!doctype html><title>Your Papers page: 4 options</title>")
 
     def test_without_inputs(self):
         out, _ = self.run_build()
@@ -190,6 +191,19 @@ class Build(unittest.TestCase):
         self.assertEqual((out / "dashboard" / "dashboard.html").read_text(),
                          (self.tmp / "dashboard" / "dist" / "dashboard.html").read_text())
         self.assertTrue((out / "dashboard" / "index.html").is_file())
+        # the page options file is served where the skill's fallback points
+        self.assertEqual((out / "dashboard" / "proposals.html").read_text(),
+                         (self.tmp / "dashboard" / "dist" / "proposals.html").read_text())
+
+    def test_real_proposals_file_is_served(self):
+        root = Path(__file__).resolve().parent.parent
+        out = self.tmp / "real-dist"
+        with contextlib.redirect_stdout(io.StringIO()), contextlib.redirect_stderr(io.StringIO()):
+            build.build(out, root)
+        served = (out / "dashboard" / "proposals.html").read_text()
+        self.assertEqual(served, (root / "dashboard" / "dist" / "proposals.html").read_text())
+        self.assertTrue(served.startswith("<!doctype html>"))
+        self.assertGreater(len(served.encode()), 20000)  # the skill's size check
 
     def test_no_dashboard_no_step(self):
         out, _ = self.run_build()
