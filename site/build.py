@@ -8,7 +8,7 @@ Required:
     site/src/            the room page (index.html), the shell of the other pages (shell.html), style.css, room.js,
                          dashboard-maya.webp (the hero picture: /dashboard/ with Maya's example, 2560x1600)
     skill/PROJECT.md     the short Project instructions: copied by the big button and shown next to it;
-                         they must contain SKILL_URL + "?v=", where Claude reads the full skill
+                         exactly PROJECT_LINE (the verified line that curls SKILL_RAW_URL, the full skill)
 
 Optional inputs (the build works without each one and shows "coming soon"):
     skill/SKILL.md       the full skill: shown at /skill/, raw at /SKILL.md (what Claude fetches, served unchanged)
@@ -45,13 +45,15 @@ HERE = Path(__file__).resolve().parent
 ROOT = HERE.parent
 SRC = HERE / "src"
 SITE_URL = "https://life-crm-lite.jerryfane.com/"
-# PROJECT.md tells Claude to read the skill at SKILL_URL + "?v=<date and time>": Claude's web fetch caches by URL,
-# so a new query each chat always gets today's skill (static assets ignore the query). The room page's
-# troubleshooting offers SKILL_RAW_URL (curl).
+# PROJECT.md tells Claude to curl the skill from SKILL_RAW_URL in its sandbox: its web fetch served a stale cached
+# copy, even with a new query string. SKILL_URL (/SKILL.md) is still served, for people to read.
 SKILL_URL = SITE_URL + "SKILL.md"
 # Static asset headers (Workers static assets read dist/_headers; it overrides the default Cache-Control).
 HEADERS = "/SKILL.md\n  Cache-Control: no-store\n/skill.txt\n  Cache-Control: no-store\n"
 SKILL_RAW_URL = "https://raw.githubusercontent.com/jerryfane/life-crm-lite/main/skill/SKILL.md"
+# The one Project instruction Jerry verified in claude.ai. skill/PROJECT.md must be exactly this line: any other
+# wording (a ?v= query, the site URL, a second command) is untested and could load something else.
+PROJECT_LINE = f"At the start of every chat, run `curl -sL {SKILL_RAW_URL}` in your sandbox and follow what it says."
 SRC_FILES = ("index.html", "shell.html", "style.css", "room.js", "dashboard-maya.webp")
 EXAMPLE_NAME = re.compile(r"[a-z0-9-]+")  # used in URLs and file paths, so kept plain
 
@@ -272,14 +274,14 @@ def build(out: Path, root: Path = ROOT) -> None:
     for name in ("style.css", "room.js", "dashboard-maya.webp"):
         shutil.copy2(SRC / name, out / name)
 
-    # The short Project instructions: the big button copies them; they load the full skill from SKILL_URL.
+    # The short Project instructions: the big button copies them; they load the full skill from SKILL_RAW_URL.
     project_md = root / "skill" / "PROJECT.md"
     if not project_md.is_file():
         sys.exit("skill/PROJECT.md is required: it's what people paste as their Project's instructions.")
     project = project_md.read_text()
-    if SKILL_URL + "?v=" not in project:
-        sys.exit(f"skill/PROJECT.md must contain {SKILL_URL}?v=: Claude loads the skill from there, "
-                 "with a new ?v= each chat so its fetch cache can't serve an old skill.")
+    if project.strip() != PROJECT_LINE:
+        sys.exit("skill/PROJECT.md must be exactly the verified Project instruction.\n"
+                 f"  expected: {PROJECT_LINE}\n  found:    {project.strip()}")
 
     # The full skill: /skill/ shows it, /SKILL.md is the raw file Claude fetches.
     skill_md = root / "skill" / "SKILL.md"
@@ -353,7 +355,6 @@ def build(out: Path, root: Path = ROOT) -> None:
         # The parser drops one newline right after <textarea>, so keep the first line intact.
         "PROJECT_TEXT": "\n" + html.escape(project),
         "PROJECT_SHOWN": html.escape(project.strip()),
-        "SKILL_RAW_URL": html.escape(SKILL_RAW_URL),
         "EXAMPLES": example_cards(found),
         "DASHBOARD_STEP": dashboard_step(has_dashboard, has_sheet_flow),
         "SITE_URL": attr(SITE_URL),
