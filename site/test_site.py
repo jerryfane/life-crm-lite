@@ -108,8 +108,9 @@ class Build(unittest.TestCase):
         with contextlib.redirect_stdout(io.StringIO()):
             build.build(out)
         project = (build.ROOT / "skill" / "PROJECT.md").read_text()
-        self.assertEqual(project.strip(), f"At the start of every chat, run `curl -sL {build.SKILL_RAW_URL}` "
-                                          "in your sandbox and follow what it says.")
+        self.assertEqual(project.strip(), build.PROJECT_LINE)
+        self.assertEqual(build.PROJECT_LINE, "At the start of every chat, run `curl -sL https://raw.githubusercontent.com/"
+                                             "jerryfane/life-crm-lite/main/skill/SKILL.md` in your sandbox and follow what it says.")
         index = (out / "index.html").read_text()
         copied = re.search(r'<textarea data-skill[^>]*>(.*?)</textarea>', index, re.S).group(1)
         self.assertEqual(html.unescape(copied).removeprefix("\n"), project)  # the parser drops that first newline
@@ -130,15 +131,20 @@ class Build(unittest.TestCase):
         self.assertEqual((out / "_headers").read_text(),
                          "/SKILL.md\n  Cache-Control: no-store\n/skill.txt\n  Cache-Control: no-store\n")
 
-    def test_project_md_required_with_skill_url(self):
+    def test_project_md_must_be_the_verified_line(self):
         project = self.tmp / "skill" / "PROJECT.md"
-        project.write_text(f"Run curl -sL {build.SKILL_RAW_URL} and follow it.\n")
-        self.run_build()  # no ?v= needed any more
-        for bad in (f"Read {build.SKILL_RAW_URL} and follow it.",  # no curl
-                    f"Run curl -sL {build.SKILL_URL} and follow it."):  # the site URL, not GitHub
+        project.write_text(build.PROJECT_LINE + "\n")
+        self.run_build()
+        line = build.PROJECT_LINE
+        for bad in (line.replace("SKILL.md`", "SKILL.md?v=2026-10-10T09:41`"),  # cache-busting query
+                    line.replace(build.SKILL_RAW_URL, build.SKILL_URL),  # the site URL, not GitHub
+                    line.replace("` in your sandbox", f"`, then `curl -sL {build.SKILL_URL}` in your sandbox"),  # mixed
+                    line.replace("curl -sL ", "")):  # no curl
             project.write_text(bad + "\n")
-            with self.assertRaises(SystemExit, msg=bad):
+            with self.assertRaises(SystemExit, msg=bad) as cm:
                 self.run_build()
+            self.assertIn(line, str(cm.exception.code))  # the message shows both lines
+            self.assertIn(bad, str(cm.exception.code))
         project.unlink()
         with self.assertRaises(SystemExit):
             self.run_build()
@@ -185,8 +191,6 @@ class Build(unittest.TestCase):
             "# Zoe <img src=x onerror=alert(1)> {{BODY}}\n\nSay <script>alert(2)</script> and "
             "[click](javascript:alert(3)) and [ok](https://e.example/?a=1&b=\"2) `<b>`\n\n| <i>a</i> |\n|---|\n| <svg> |\n")
         (self.tmp / "skill" / "SKILL.md").write_text("</textarea><script>alert(4)</script>\n{{EXAMPLES}}\n")
-        (self.tmp / "skill" / "PROJECT.md").write_text(
-            "</textarea><script>alert(5)</script> {{EXAMPLES}} " + "curl " + build.SKILL_RAW_URL + "\n")
         self.add_dashboard()
 
         out, err = self.run_build()
@@ -202,7 +206,6 @@ class Build(unittest.TestCase):
         index = pages[out / "index.html"]
         self.assertIn('href="/examples/zoe/"', index)
         self.assertEqual(index.count("<textarea"), 1)
-        self.assertEqual(index.count("{{EXAMPLES}}"), 2)  # the instructions (copied and shown) are not taken for a placeholder
 
 
 if __name__ == "__main__":

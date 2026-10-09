@@ -4,6 +4,8 @@
 
 **Updates.** `SKILL.md` is loaded with curl from GitHub `main`, so a merged change reaches everyone on their next chat (GitHub's raw CDN may lag about 5 minutes). Nobody re-pastes anything. Deploy the site too (`site/deploy.sh`) so `/SKILL.md` and `/skill/` show the same text. `PROJECT.md` itself only changes if that URL does; then people must paste it again.
 
+**Trust boundary.** Every participant's Claude loads and follows `skill/SKILL.md` from GitHub `main` at the start of every new chat, with access to their Google Drive and Google Sheets. Whatever lands on `main` runs in everyone's account, so `main` must stay protected: only Jerry merges, skill changes are reviewed before merging, and nobody else gets write access to the repo. Branch protection is currently **not** enabled on `main` (checked 2026-10-10; Jerry is the only collaborator); turning it on is Jerry's call.
+
 **Claude's tools** (seen in Jerry's test chat). Questions with choices use `ask_user_input_v0` (tappable buttons, 2–4 options; it can't mark a suggestion, so Claude says it in the text above). The Google Drive and Google Sheets tools are deferred: Claude loads them with `tool_search` at the start of step 4 and of every later chat.
 
 **Setup** (claude.ai): **Projects** > **+ New Project**, name it `life-crm` > **Set project instructions**, paste the line in `PROJECT.md` (the room page's **Copy the instructions** button), **Save instructions**. In **Settings > Capabilities**, turn on **Code execution and file creation**. Then start a chat in the Project.

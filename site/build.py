@@ -8,7 +8,7 @@ Required:
     site/src/            the room page (index.html), the shell of the other pages (shell.html), style.css, room.js,
                          dashboard-maya.webp (the hero picture: /dashboard/ with Maya's example, 2560x1600)
     skill/PROJECT.md     the short Project instructions: copied by the big button and shown next to it;
-                         they must contain "curl" and SKILL_RAW_URL, where Claude loads the full skill
+                         exactly PROJECT_LINE (the verified line that curls SKILL_RAW_URL, the full skill)
 
 Optional inputs (the build works without each one and shows "coming soon"):
     skill/SKILL.md       the full skill: shown at /skill/, raw at /SKILL.md (what Claude fetches, served unchanged)
@@ -51,6 +51,9 @@ SKILL_URL = SITE_URL + "SKILL.md"
 # Static asset headers (Workers static assets read dist/_headers; it overrides the default Cache-Control).
 HEADERS = "/SKILL.md\n  Cache-Control: no-store\n/skill.txt\n  Cache-Control: no-store\n"
 SKILL_RAW_URL = "https://raw.githubusercontent.com/jerryfane/life-crm-lite/main/skill/SKILL.md"
+# The one Project instruction Jerry verified in claude.ai. skill/PROJECT.md must be exactly this line: any other
+# wording (a ?v= query, the site URL, a second command) is untested and could load something else.
+PROJECT_LINE = f"At the start of every chat, run `curl -sL {SKILL_RAW_URL}` in your sandbox and follow what it says."
 SRC_FILES = ("index.html", "shell.html", "style.css", "room.js", "dashboard-maya.webp")
 EXAMPLE_NAME = re.compile(r"[a-z0-9-]+")  # used in URLs and file paths, so kept plain
 
@@ -276,8 +279,9 @@ def build(out: Path, root: Path = ROOT) -> None:
     if not project_md.is_file():
         sys.exit("skill/PROJECT.md is required: it's what people paste as their Project's instructions.")
     project = project_md.read_text()
-    if "curl" not in project or SKILL_RAW_URL not in project:
-        sys.exit(f"skill/PROJECT.md must tell Claude to curl {SKILL_RAW_URL}: that's how it loads the skill.")
+    if project.strip() != PROJECT_LINE:
+        sys.exit("skill/PROJECT.md must be exactly the verified Project instruction.\n"
+                 f"  expected: {PROJECT_LINE}\n  found:    {project.strip()}")
 
     # The full skill: /skill/ shows it, /SKILL.md is the raw file Claude fetches.
     skill_md = root / "skill" / "SKILL.md"
