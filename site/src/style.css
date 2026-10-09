@@ -77,6 +77,22 @@ h2 { font-size: clamp(32px, 4.4vw, 52px); line-height: 1.07; font-weight: 700; l
 .bw-u { flex: 1; min-width: 0; display: flex; justify-content: center; margin-right: 52px; }
 .bw-u span { max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; padding: 4px 16px; border-radius: 8px; background: #fff; color: var(--m); font-size: 12px; line-height: 16px; }
 .zoom { position: relative; overflow: hidden; display: block; }
+
+/* walkthrough video: a local poster in the browser frame; the YouTube iframe is made only on Play (room.js) */
+.vid-sec { padding-bottom: 0; }
+.video { max-width: 960px; margin: 48px auto 0; }
+.vbox { position: relative; aspect-ratio: 16 / 9; background: #000; }
+.vbox iframe { position: absolute; inset: 0; width: 100%; height: 100%; border: 0; }
+.vplay { position: absolute; inset: 0; display: block; width: 100%; padding: 0; border: 0; background: none; cursor: pointer; }
+.vplay img { width: 100%; height: 100%; object-fit: cover; }
+.vplay-btn { position: absolute; left: 50%; top: 50%; transform: translate(-50%, -50%); display: inline-flex; align-items: center; gap: 10px;
+  min-height: 56px; padding: 0 26px 0 22px; border-radius: 999px; background: rgba(29, 29, 31, .86); color: #fff; font-size: 17px; font-weight: 600;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, .3); transition: background .2s, transform .2s; }
+.vplay-btn svg { width: 22px; height: 22px; }
+.vplay:hover .vplay-btn, .vplay:focus-visible .vplay-btn { background: var(--blue); transform: translate(-50%, -50%) scale(1.04); }
+.vplay:focus-visible { outline: 3px solid var(--blue); outline-offset: -3px; }
+.video figcaption { margin-top: 16px; font-size: 15px; }
+.video figcaption a { color: var(--link); }
 .zoom img { position: absolute; left: 0; top: 0; max-width: none; }
 .copied:empty { min-height: 0; margin: 0; }
 .eyebrow { margin-bottom: 12px; font-size: 15px; font-weight: 600; color: var(--accent); }
@@ -238,6 +254,9 @@ kbd { display: inline-block; min-width: 24px; padding: 1px 7px; border-radius: 6
 @media (max-width: 640px) {
   :root { --nav-h: 48px; }
   .sec { padding: 72px 0; }
+  .vid-sec { padding-bottom: 0; }
+  .video { margin-top: 32px; }
+  .vplay-btn { min-height: 48px; padding: 0 20px 0 16px; font-size: 16px; }
   .nav nav a:not(:last-child) { display: none; }
   .hero-in { padding-top: 24px; gap: 24px; }
   .head { gap: 12px; }

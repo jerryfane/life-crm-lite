@@ -103,6 +103,27 @@ class Build(unittest.TestCase):
         self.assertEqual((out / "dashboard-maya.webp").read_bytes(), (build.SRC / "dashboard-maya.webp").read_bytes())
         self.assertIn('src="/dashboard-maya.webp"', index)
 
+    def test_video_is_click_to_load(self):
+        out, _ = self.run_build()
+        index = (out / "index.html").read_text()
+        self.assertEqual((out / "video-poster.webp").read_bytes(), (build.SRC / "video-poster.webp").read_bytes())
+        self.assertIn('<section class="sec center vid-sec" id="video">', index)
+        self.assertIn("<h2>Watch the full example</h2>", index)
+        self.assertIn('src="/video-poster.webp"', index)
+        self.assertIn('<a href="#video">Video</a>', index)
+        self.assertIn('<a href="https://www.youtube.com/watch?v=cC5p88uH2YY">Watch on YouTube</a>', index)
+        # before "What you'll get", right after the hero
+        self.assertLess(index.index('</figure>\n    </div>\n  </section>'), index.index('id="video"'))
+        self.assertLess(index.index('id="video"'), index.index('id="get"'))
+        # no YouTube request in the initial HTML: no iframe, and the embed URL only as the button's data
+        self.assertNotIn("<iframe", index)
+        self.assertIn('data-video="https://www.youtube-nocookie.com/embed/cC5p88uH2YY?autoplay=1&amp;rel=0"', index)
+        self.assertNotRegex(index, r'(src|href)="https://www\.youtube-nocookie\.com')
+        self.assertNotIn("i.ytimg.com", index)
+        js = (out / "room.js").read_text()
+        self.assertIn("document.createElement('iframe')", js)
+        self.assertIn("strict-origin-when-cross-origin", js)
+
     def test_real_build_copies_project_md_and_serves_skill_md_unchanged(self):
         out = self.tmp / "real"
         with contextlib.redirect_stdout(io.StringIO()):
