@@ -46,11 +46,11 @@
             <a class="more" href="/dashboard/">See the dashboard</a>
           </div>
           <p class="copied" data-copied role="status">{{SKILL_NOTE}}</p>
+          <div class="instr">
+            <details data-instr><summary>See what you paste</summary><pre>{{PROJECT_SHOWN}}</pre></details>
+            <a href="/skill/">Read the full skill</a>
+          </div>
           <textarea data-skill hidden readonly aria-hidden="true">{{PROJECT_TEXT}}</textarea>
-          <figure class="instr">
-            <figcaption>What you paste. Claude then loads the full skill by itself. <a href="/skill/">Read the full skill</a></figcaption>
-            <pre>{{PROJECT_SHOWN}}</pre>
-          </figure>
         </div>
       </div>
       <figure class="hero-shot">

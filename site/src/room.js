@@ -16,12 +16,14 @@
     btn.disabled = false;
     btn.addEventListener('click', async () => {
       const ok = await copyText(skill.value);
+      const shown = document.querySelector('[data-instr]');
+      if (!ok && shown) shown.open = true;  // show the text to select by hand
       btn.textContent = ok ? 'Copied' : 'Copy failed';
       btn.classList.toggle('ok', ok);
       if (status) status.classList.toggle('ok', ok);
       if (status) status.textContent = ok
         ? 'Copied. Paste it as the instructions of a new Claude Project.'
-        : 'Your browser blocked copying. Select the instructions below and copy them.';
+        : 'Your browser blocked copying. Select the instructions above and copy them.';
       clearTimeout(btn._t);
       btn._t = setTimeout(() => { btn.innerHTML = label; btn.classList.remove('ok'); }, 2500);
     });

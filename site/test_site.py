@@ -113,7 +113,8 @@ class Build(unittest.TestCase):
         index = (out / "index.html").read_text()
         copied = re.search(r'<textarea data-skill[^>]*>(.*?)</textarea>', index, re.S).group(1)
         self.assertEqual(html.unescape(copied).removeprefix("\n"), project)  # the parser drops that first newline
-        self.assertIn(f"<pre>{html.escape(project.strip())}</pre>", index)  # shown next to the button
+        # shown under the button, collapsed so the hero keeps its layout
+        self.assertIn(f'<details data-instr><summary>See what you paste</summary><pre>{html.escape(project.strip())}</pre></details>', index)
         self.assertIn('<a href="/skill/">Read the full skill</a>', index)
         self.assertIn("Copy the instructions", index)
         self.assertNotIn("Copy the skill", index)
