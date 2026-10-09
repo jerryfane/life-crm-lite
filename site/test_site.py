@@ -108,16 +108,19 @@ class Build(unittest.TestCase):
         with contextlib.redirect_stdout(io.StringIO()):
             build.build(out)
         project = (build.ROOT / "skill" / "PROJECT.md").read_text()
-        self.assertEqual(project.strip(), f"At the start of every chat, read {build.SKILL_URL}"
-                                          "?v=<today's date and time, e.g. 2026-10-10T09:41> and follow it.")
+        self.assertEqual(project.strip(), f"At the start of every chat, run `curl -sL {build.SKILL_RAW_URL}` "
+                                          "in your sandbox and follow what it says.")
         index = (out / "index.html").read_text()
         copied = re.search(r'<textarea data-skill[^>]*>(.*?)</textarea>', index, re.S).group(1)
         self.assertEqual(html.unescape(copied).removeprefix("\n"), project)  # the parser drops that first newline
         # shown as one line under the buttons
         self.assertIn(f'<code data-instr>{html.escape(project.strip())}</code>', index)
         self.assertNotIn("<details", index)
-        # the GitHub copy is the troubleshooting fallback, one line in the setup
-        self.assertIn(f"ask it to run <code>curl -sL {build.SKILL_RAW_URL}</code> and follow that.", index)
+        # troubleshooting: curl needs code execution; the old curl fallback line is gone (curl is the main path)
+        self.assertIn("If Claude says it can’t run commands: go to <b>Settings › Capabilities</b>, turn on "
+                      "<b>Code execution and file creation</b>", index)
+        self.assertIn("Claude needs it to load the skill at the start of every chat", index)
+        self.assertNotIn("can’t read the instructions", index)
         self.assertIn('<a href="/skill/">Read the full skill</a>', index)
         self.assertIn("Copy the instructions", index)
         self.assertNotIn("Copy the skill", index)
@@ -129,10 +132,11 @@ class Build(unittest.TestCase):
 
     def test_project_md_required_with_skill_url(self):
         project = self.tmp / "skill" / "PROJECT.md"
-        project.write_text(f"Read {build.SKILL_URL}?v=<now> and follow it.\n")
-        self.run_build()  # the GitHub URL is not required in PROJECT.md
-        for bad in (build.SKILL_URL, build.SKILL_RAW_URL + "?v=<now>"):  # no fresh ?v=, or the wrong URL
-            project.write_text(f"Read {bad} and follow it.\n")
+        project.write_text(f"Run curl -sL {build.SKILL_RAW_URL} and follow it.\n")
+        self.run_build()  # no ?v= needed any more
+        for bad in (f"Read {build.SKILL_RAW_URL} and follow it.",  # no curl
+                    f"Run curl -sL {build.SKILL_URL} and follow it."):  # the site URL, not GitHub
+            project.write_text(bad + "\n")
             with self.assertRaises(SystemExit, msg=bad):
                 self.run_build()
         project.unlink()
@@ -182,7 +186,7 @@ class Build(unittest.TestCase):
             "[click](javascript:alert(3)) and [ok](https://e.example/?a=1&b=\"2) `<b>`\n\n| <i>a</i> |\n|---|\n| <svg> |\n")
         (self.tmp / "skill" / "SKILL.md").write_text("</textarea><script>alert(4)</script>\n{{EXAMPLES}}\n")
         (self.tmp / "skill" / "PROJECT.md").write_text(
-            "</textarea><script>alert(5)</script> {{EXAMPLES}} " + build.SKILL_URL + "?v=1\n")
+            "</textarea><script>alert(5)</script> {{EXAMPLES}} " + "curl " + build.SKILL_RAW_URL + "\n")
         self.add_dashboard()
 
         out, err = self.run_build()

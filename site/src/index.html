@@ -135,8 +135,8 @@
             <li>Click <b>+ New Project</b>, name it <b>life-crm</b>, and create it.</li>
             <li>Click <b>Set project instructions</b>, paste the instructions, and click <b>Save instructions</b>.</li>
           </ol>
-          <h3>Turn on artifacts (once)</h3>
-          <p>Go to <b>Settings › Capabilities</b> and turn on <b>Code execution and file creation</b>. Claude needs it to download your dashboard and show it as an artifact.</p>
+          <h3>Turn on code execution (once)</h3>
+          <p>Go to <b>Settings › Capabilities</b> and turn on <b>Code execution and file creation</b>. Claude needs it to load the skill at the start of every chat, to download your dashboard and to show it as an artifact.</p>
           <h3>Connect Google Drive and Google Sheets</h3>
           <ol>
             <li>Go to <b>Customize › Connectors</b>.</li>
@@ -155,7 +155,7 @@
           <p>In the chat, click <b>+</b> (bottom left of the message box) › <b>Connectors</b>, and switch on <b>Google Drive</b> and <b>Google Sheets</b>. Claude needs both.</p>
           <p class="fine">Editing Google Sheets is a beta in Claude, on the website and the desktop app.</p>
           <h3>If something goes wrong</h3>
-          <p>If Claude says it can’t read the instructions: in the chat, ask it to run <code>curl -sL {{SKILL_RAW_URL}}</code> and follow that.</p>
+          <p>If Claude says it can’t run commands: go to <b>Settings › Capabilities</b>, turn on <b>Code execution and file creation</b>, and start a new chat in the Project.</p>
           <h3>Use a different Google account</h3>
           <ol>
             <li>Go to <b>Customize › Connectors</b> and click <b>Google Drive</b> under “Your connectors”.</li>
