@@ -64,7 +64,8 @@ var LitePages = (function () {
   // ---------- lists ----------
   const LAYOUTS = ["table", "cards", "board", "feed"];
   // A column's key, as tools/convert.py header_key and life-crm's sheet.py read headers: "Status (stage)" -> "status",
-  // "Due date" -> "due_date". The status and date columns are found by it, as the sheet finds them.
+  // "Due date" -> "due_date". Every check on a header goes through it (the status, date, link, owner, fit columns,
+  // deadlines), so the page reads a column the way the sheet does.
   const headerKey = (c) => String(c == null ? "" : c).split("(")[0].trim().toLowerCase().replace(/\s+/g, "_");
   // One lite list (docs/data-contract.md `lists[]`) as a page: columns, the status and date columns, its items.
   function listPage(l, group) {
@@ -117,7 +118,9 @@ var LitePages = (function () {
   const cap = (s) => s.charAt(0).toUpperCase() + s.slice(1);
   const statusTag = (s) => (s ? tag(cap(s), GOOD.test(s) ? "ok" : BUSY.test(s) ? "ind" : BAD.test(s) ? "no" : "") : null);
   // Only deadline-like date columns ("deadline", "due", "apply by") get flagged once passed.
-  const isDeadline = (c) => /deadline|due|apply/.test(c.date_field);
+  const isDeadline = (c) => /deadline|due|apply/.test(headerKey(c.date_field));
+  // A row's value in the column whose key is k ("Link", "Owner (who)" -> "link", "owner"), or "".
+  const field = (i, k) => { const f = Object.keys(i.values).find((x) => headerKey(x) === k); return f ? i.values[f] : ""; };
   // Column label: the header as typed in the sheet; "intl_grads" style headers become "Intl grads".
   const label = (c, f) => (c.labels[f] || f).replace(/_/g, " ").replace(/^./, (x) => x.toUpperCase());
   const recentCount = (c) => c.items.filter((i) => i.date && daysBetween(iso(i.date), TODAY) <= 7).length;
@@ -150,21 +153,21 @@ var LitePages = (function () {
     }
     const v = i.values[f] || "";
     if (/^https?:\/\//.test(v)) return ext(v);
-    if (f === "fit" || f === "rating") {
+    if (["fit", "rating"].includes(headerKey(f))) {
       const n = Number(v);
       if (v !== "" && n >= 0 && n <= 5) return h("span", { class: "fit", title: `${n} of 5` }, [0, 1, 2, 3, 4].map((k) => h("i", { class: k < n ? "on" : "" })));
     }
     return v;
   }
   function detailBody(c, i) {
-    const rows = Object.entries(i.values).filter(([f, v]) => v && f !== c.title_field && f !== "link");
+    const rows = Object.entries(i.values).filter(([f, v]) => v && f !== c.title_field && headerKey(f) !== "link");
     const short = rows.filter(([, v]) => v.length <= 60), long = rows.filter(([, v]) => v.length > 60);
     return [
       short.length ? h("div", { class: "kv" }, short.map(([f]) => [h("span", {}, label(c, f)), h("span", {}, cell(c, i, f))])) : null,
       long.map(([f, v]) => h("div", { class: "note" }, h("b", {}, label(c, f)), v))];
   }
   function detailCard(c, i) {
-    return h("div", { class: "card" }, h("h3", {}, "Selected", ext(i.values.link)), h("h4", { class: "dt" }, i.title), detailBody(c, i));
+    return h("div", { class: "card" }, h("h3", {}, "Selected", ext(field(i, "link"))), h("h4", { class: "dt" }, i.title), detailBody(c, i));
   }
   // Table rows expand in place: tap a row to show all its details right below it, tap again to close.
   const openRow = {};
@@ -185,7 +188,7 @@ var LitePages = (function () {
           return v.length > 40 ? h("td", { class: "wrap" }, h("span", { class: "clamp", title: v }, cell(c, i, f))) : h("td", {}, cell(c, i, f));
         })));
       if (on) body.push(h("tr", { class: "xp" }, h("td", { colspan: String(cols.length) },
-        h("div", { class: "xp-in" }, h("div", { class: "xp-h" }, h("b", {}, i.title), ext(i.values.link)), detailBody(c, i)))));
+        h("div", { class: "xp-in" }, h("div", { class: "xp-h" }, h("b", {}, i.title), ext(field(i, "link"))), detailBody(c, i)))));
     }
     return h("div", { class: "card scroll" }, h("table", { class: "t" },
       h("thead", {}, h("tr", {}, cols.map((f) => h("th", {}, label(c, f))))), h("tbody", {}, body)));
@@ -200,18 +203,18 @@ var LitePages = (function () {
       h("div", { class: "grid3" }, list.map((i, k) => h("button", { type: "button", class: `prop${i === sel ? " sel" : ""}`, onclick: () => { pageState[c.id] = k; env.render(); } },
         h("span", { class: "meta" }, meta[0] && i.values[meta[0]] ? tag(i.values[meta[0]], "ind") : null, statusTag(i.status)),
         h("h4", {}, i.title), body && i.values[body] ? h("p", {}, i.values[body]) : null,
-        h("span", { class: "prow" }, h("span", {}, meta[1] && i.values[meta[1]] ? `${label(c, meta[1])}: ${i.values[meta[1]]}` : fmtItemDate(i)), avatar(i.values.owner || i.values.who))))),
+        h("span", { class: "prow" }, h("span", {}, meta[1] && i.values[meta[1]] ? `${label(c, meta[1])}: ${i.values[meta[1]]}` : fmtItemDate(i)), avatar(field(i, "owner") || field(i, "who")))))),
       h("div", { style: "margin-top:16px" }, detailCard(c, sel)));
   }
   function feedPage(c, list) {
-    const textF = c.fields.find((f) => !["who", "owner", "timeline", "link", c.date_field, c.title_field].includes(f)) || "text";
+    const textF = c.fields.find((f) => f !== c.date_field && f !== c.title_field && !["who", "owner", "timeline", "link"].includes(headerKey(f))) || "text";
     return h("div", { class: "feed" }, list.map((i) => {
-      const who = i.values.who || i.values.owner || "";
+      const who = field(i, "who") || field(i, "owner");
       return h("article", { class: "post" },
         h("div", { class: "post-hd" }, avatar(who), who ? h("b", {}, who) : null,
           h("time", {}, fmtItemDate(i) || i.values[c.date_field] || "")),
         h("h4", {}, i.title), i.values[textF] ? h("p", {}, i.values[textF]) : null,
-        i.values.link ? h("div", { class: "post-go" }, ext(i.values.link)) : null);
+        field(i, "link") ? h("div", { class: "post-go" }, ext(field(i, "link"))) : null);
     }));
   }
   // Board: a column per status, in the order of the list's `statuses` (then any other status found, then items with
@@ -230,7 +233,7 @@ var LitePages = (function () {
         h("b", {}, i.title),
         short.map((f) => (i.values[f] ? h("span", { class: "bmeta" }, i.values[f]) : null)),
         i.date ? h("span", { class: "bdate" }, cell(c, i, c.date_field)) : null),
-        on ? h("div", { class: "bdetail" }, ext(i.values.link), detailBody(c, i)) : null);
+        on ? h("div", { class: "bdetail" }, ext(field(i, "link")), detailBody(c, i)) : null);
     };
     return h("div", { class: "board" }, order.map((s) => {
       const items = list.filter((i) => i.status === s);

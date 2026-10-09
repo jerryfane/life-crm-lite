@@ -95,3 +95,37 @@ test("an empty board shows its stages; an empty list without stages shows the em
     assert.deepEqual(b.errors, []);
   }
 });
+
+test("a passed `Due date (YYYY-MM-DD)` is flagged in the table and the board; `Link (url)` and `Owner (who)` are read too", { skip }, async () => {
+  const d = clone(MAYA);
+  const papers = d.lists.find((l) => l.id === "papers");
+  papers.columns = ["paper", "Status (stage)", "Due date (YYYY-MM-DD)", "Owner (who)", "Link (url)"];
+  papers.rows = [
+    { paper: "Late one", "Status (stage)": "writing", "Due date (YYYY-MM-DD)": "2026-09-01", "Owner (who)": "Dr. Navarro", "Link (url)": "https://example.com/p1" },
+    { paper: "Done one", "Status (stage)": "accepted", "Due date (YYYY-MM-DD)": "2026-09-01", "Owner (who)": "", "Link (url)": "" },
+    { paper: "Later one", "Status (stage)": "idea", "Due date (YYYY-MM-DD)": "2027-03-01", "Owner (who)": "", "Link (url)": "" },
+  ];
+  const today = "?today=2026-10-10";
+  for (const layout of ["table", "board"]) {
+    Object.assign(papers, { layout, statuses: "idea, writing, accepted" });
+    await b.open(page(d) + "", 1440);
+    await b.run(`history.replaceState(null, "", location.pathname + "${today}"); location.reload(); 1`);
+    await b.run(`new Promise((r) => setTimeout(r, 700))`);
+    await go("p/papers");
+    const hot = await b.run(`[...document.querySelectorAll(".hot")].map((e) => e.textContent)`);
+    assert.deepEqual(hot, ["passed Sep 1"], layout); // open and passed: flagged; accepted: not; later: not
+    if (layout === "table") {
+      await b.run(`[...document.querySelectorAll("tbody tr")].find((e) => e.textContent.startsWith("Late one")).click(); 1`);
+      assert.equal(await b.run(`document.querySelector(".xp-h a").getAttribute("href")`), "https://example.com/p1");
+      assert.equal(await b.run(`[...document.querySelectorAll(".xp-in .kv span")].some((e) => e.textContent === "Link (url)")`), false);
+    } else {
+      await b.run(`[...document.querySelectorAll(".bcard")].find((e) => e.textContent.startsWith("Late one")).click(); 1`);
+      assert.equal(await b.run(`document.querySelector(".bdetail > a").getAttribute("href")`), "https://example.com/p1");
+    }
+    assert.deepEqual(b.errors, [], layout);
+  }
+  Object.assign(papers, { layout: "cards" });
+  await b.open(page(d));
+  await go("p/papers");
+  assert.equal(await b.run(`document.querySelector(".prop .av").getAttribute("title")`), "Dr. Navarro");
+});
