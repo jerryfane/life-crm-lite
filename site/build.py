@@ -8,7 +8,7 @@ Required:
     site/src/            the room page (index.html), the shell of the other pages (shell.html), style.css, room.js,
                          dashboard-maya.webp (the hero picture: /dashboard/ with Maya's example, 2560x1600)
     skill/PROJECT.md     the short Project instructions: copied by the big button and shown next to it;
-                         they must contain SKILL_URL, where Claude reads the full skill
+                         they must contain SKILL_URL + "?v=", where Claude reads the full skill
 
 Optional inputs (the build works without each one and shows "coming soon"):
     skill/SKILL.md       the full skill: shown at /skill/, raw at /SKILL.md (what Claude fetches, served unchanged)
@@ -26,6 +26,7 @@ Output layout:
     /examples/<name>/    each example transcript, plus its data files
     /dashboard-maya.webp the hero picture
     /qr.svg  /qr.png     QR code of the room page URL, made at build time
+    /_headers            Cloudflare asset headers (not served): /SKILL.md and /skill.txt are never cached
 """
 from __future__ import annotations
 
@@ -44,8 +45,12 @@ HERE = Path(__file__).resolve().parent
 ROOT = HERE.parent
 SRC = HERE / "src"
 SITE_URL = "https://life-crm-lite.jerryfane.com/"
-# PROJECT.md tells Claude to read the skill at SKILL_URL; the room page's troubleshooting offers SKILL_RAW_URL (curl).
+# PROJECT.md tells Claude to read the skill at SKILL_URL + "?v=<date and time>": Claude's web fetch caches by URL,
+# so a new query each chat always gets today's skill (static assets ignore the query). The room page's
+# troubleshooting offers SKILL_RAW_URL (curl).
 SKILL_URL = SITE_URL + "SKILL.md"
+# Static asset headers (Workers static assets read dist/_headers; it overrides the default Cache-Control).
+HEADERS = "/SKILL.md\n  Cache-Control: no-store\n/skill.txt\n  Cache-Control: no-store\n"
 SKILL_RAW_URL = "https://raw.githubusercontent.com/jerryfane/life-crm-lite/main/skill/SKILL.md"
 SRC_FILES = ("index.html", "shell.html", "style.css", "room.js", "dashboard-maya.webp")
 EXAMPLE_NAME = re.compile(r"[a-z0-9-]+")  # used in URLs and file paths, so kept plain
@@ -272,8 +277,9 @@ def build(out: Path, root: Path = ROOT) -> None:
     if not project_md.is_file():
         sys.exit("skill/PROJECT.md is required: it's what people paste as their Project's instructions.")
     project = project_md.read_text()
-    if SKILL_URL not in project:
-        sys.exit(f"skill/PROJECT.md must contain {SKILL_URL}: Claude loads the skill from there.")
+    if SKILL_URL + "?v=" not in project:
+        sys.exit(f"skill/PROJECT.md must contain {SKILL_URL}?v=: Claude loads the skill from there, "
+                 "with a new ?v= each chat so its fetch cache can't serve an old skill.")
 
     # The full skill: /skill/ shows it, /SKILL.md is the raw file Claude fetches.
     skill_md = root / "skill" / "SKILL.md"
@@ -355,6 +361,7 @@ def build(out: Path, root: Path = ROOT) -> None:
     (out / "index.html").write_text(index)
     soon("Page not found", "There’s nothing at this address.", out / "404.html")
     (out / "robots.txt").write_text("User-agent: *\nAllow: /\n")
+    (out / "_headers").write_text(HEADERS)
 
     parts = {"skill": bool(skill), "dashboard": has_dashboard, "viewer": (root / "viewer" / "index.html").is_file(),
              "examples": [f[0] for f in found]}
