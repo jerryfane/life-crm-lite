@@ -217,7 +217,6 @@ button.rm-lab { cursor: pointer; } button.rm-lab:hover .rm-name { text-decoratio
 .post { border: 1px solid var(--line); border-radius: 14px; padding: 16px 18px; margin-bottom: 12px; background: #fff; }
 .post-hd { display: flex; align-items: center; gap: 8px; font-size: 13px; flex-wrap: wrap; }
 .post-hd time { color: var(--faint); font-size: 12px; margin-left: auto; }
-.tltag { font-size: 11px; font-weight: 700; padding: 2px 8px; border-radius: 999px; background: var(--t); color: var(--c); text-decoration: none; }
 .post h4 { margin: 10px 0 4px; font-size: 16px; }
 .post p { margin: 0; font-size: 13.5px; color: #4b5563; }
 .post-go { margin-top: 10px; font-size: 13px; } .post-go a { color: #1f5f5b; font-weight: 650; text-decoration: none; }
@@ -276,8 +275,9 @@ button.rm-lab { cursor: pointer; } button.rm-lab:hover .rm-name { text-decoratio
 }
 @media (max-width: 900px) {
   .shell { grid-template-columns: 1fr; }
-  .sidebar { position: fixed; top: 0; left: 0; bottom: 0; width: 280px; height: auto; z-index: 80; transform: translateX(-102%); transition: transform .2s; box-shadow: 8px 0 30px rgba(0,0,0,.12); }
-  .shell.open .sidebar { transform: none; }
+  .sidebar { position: fixed; top: 0; left: 0; bottom: 0; width: 280px; height: auto; z-index: 80; transform: translateX(-102%); transition: transform .2s, box-shadow .2s; }
+  /* the shadow only while open: closed, it spilled a grey band onto the page's left edge */
+  .shell.open .sidebar { transform: none; box-shadow: 8px 0 30px rgba(0,0,0,.12); }
   .shell.open::after { content: ""; position: fixed; inset: 0; background: rgba(17,24,39,.25); z-index: 70; }
   .mbar { display: flex; align-items: center; gap: 12px; position: sticky; top: 0; z-index: 30; background: #fff; border-bottom: 1px solid #e3e1db; padding: 10px 14px; font-weight: 700; font-size: 14px; }
   .mbar button { border: 1px solid var(--line); background: #fff; border-radius: 9px; height: 34px; padding: 0 12px; font-weight: 650; font-size: 13px; cursor: pointer; }

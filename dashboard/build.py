@@ -1,15 +1,16 @@
 #!/usr/bin/env python3
 """Build the dashboard as one self-contained HTML file for a Claude artifact.
 
-    python3 dashboard/build.py                          # dashboard/dist/dashboard.html with examples/maya, and
-                                                        # the viewer, viewer/index.html
+    python3 dashboard/build.py                          # dashboard/dist/dashboard.html with examples/maya, the page
+                                                        # options dist/proposals.html, and the viewer, viewer/index.html
     python3 dashboard/build.py --data my.json --out x.html
-    python3 dashboard/build.py --check                  # exits 1 if dist/dashboard.html or viewer/index.html is out
-                                                        # of date, or the dashboard's lite-hash marker doesn't match
+    python3 dashboard/build.py --check                  # exits 1 if any of the three is out of date, or the
+                                                        # lite-hash marker of dashboard.html or proposals.html doesn't match
 
 Sources: dashboard/src/style.css + lite.css (the look), bridge.js (the claude.ai artifact runtime, `claude.use`) +
 source.js (LiteSource: the viewer's sheet through their Google Sheets connector, saved copy, embedded block;
-optional, the page falls back to the embedded block without it) and app.js (the dashboard). The data block
+optional, the page falls back to the embedded block without it), pages.js (LitePages: the list pages, dates and DOM
+helpers, shared with proposals.html and the viewer) and app.js (the dashboard). The data block
 (docs/data-contract.md) is embedded in <script id="data">; at run time LiteSource.load() replaces it with the
 live sheet. No external requests. bridge.js keeps per-viewer data in the artifact's db, and uses localStorage
 (guarded) only when db is missing. Publish with the capabilities in dashboard/CAPABILITIES.md. No
@@ -25,6 +26,13 @@ The viewer (/viewer/, the backup page for people not on Claude Pro): the same ap
 viewer/src/source.js (the data block pasted on this laptop, in localStorage) plus viewer/src/export.js ("Download my
 sheet (.xlsx)") and viewer/src/viewer.css, in the shell viewer/src/index.html. It has a Content-Security-Policy that
 lets only its own inline script run (by SHA-256 hash), and no self-check (nobody retypes it).
+
+The page options (dist/proposals.html): 4 drafts of a new page, shown by Claude as a separate artifact for the person to
+pick from. selfcheck.js + pages.js + proposals.js with style.css, lite.css and proposals.css, so each draft is drawn by
+the same code and CSS as the dashboard's list pages. Its data block is {title, intro, options: [{label, why, list} × 4]}
+(examples/maya/proposals.json). It calls nothing (no Claude, storage or sheet), so it has a Content-Security-Policy that
+lets only its own script run (by hash), and the same lite-hash self-check as the dashboard. A copy with a changed
+script doesn't run at all under that policy, so the page starts with a plain note that the script replaces.
 """
 from __future__ import annotations
 
@@ -41,6 +49,8 @@ HERE = Path(__file__).resolve().parent
 ROOT, SRC = HERE.parent, HERE / "src"
 OUT = HERE / "dist" / "dashboard.html"
 EXAMPLE = ROOT / "examples" / "maya" / "data.json"
+PROPOSALS_OUT = HERE / "dist" / "proposals.html"
+PROPOSALS_EXAMPLE = ROOT / "examples" / "maya" / "proposals.json"
 
 SHELL = """<!doctype html>
 <html lang="en">
@@ -106,7 +116,7 @@ def marker_problem(html: str) -> str:
 
 
 def build(data: dict) -> str:
-    js = [src(n) for n in ("selfcheck.js", "bridge.js", "source.js") if (SRC / n).exists()]
+    js = [src(n) for n in ("selfcheck.js", "bridge.js", "source.js") if (SRC / n).exists()] + [src("pages.js")]
     parts = {
         "TITLE": html_escape(str(data.get("title") or "My plan")),
         "CSS": slim_css(src("style.css") + src("lite.css")),
@@ -134,7 +144,7 @@ def csp(script: str) -> str:
 def build_viewer() -> str:
     """The viewer: this dashboard on viewer/src/source.js with viewer/src/export.js, in viewer/src/index.html.
     It embeds examples/maya for "See an example"."""
-    js = slim_js("\n".join([read(VIEWER / "src/export.js"), read(VIEWER / "src/source.js"), src("app.js")]))
+    js = slim_js("\n".join([read(VIEWER / "src/export.js"), read(VIEWER / "src/source.js"), src("pages.js"), src("app.js")]))
     parts = {
         "CSP": csp(js),
         "CSS": slim_css(src("style.css") + src("lite.css") + read(VIEWER / "src/viewer.css")),
@@ -150,6 +160,44 @@ def build_viewer() -> str:
     return html
 
 
+PROPOSALS_SHELL = """<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta http-equiv="Content-Security-Policy" content="@CSP">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="color-scheme" content="light only">
+<meta name="lite-hash" content="@HASH">
+<title>@TITLE</title>
+<style data-lite>@CSS</style>
+</head>
+<body>
+<div id="app"><p class="pp-stuck">If this stays, this page wasn't copied exactly, so it can't run. In your Project chat, say: <b>“Copy proposals.html again exactly, every character.”</b></p></div>
+<script id="data" type="application/json">@DATA</script>
+<script data-lite>@JS</script>
+</body>
+</html>
+"""
+
+
+def build_proposals(data: dict) -> str:
+    """The page options: pages.js + proposals.js, with the dashboard's CSS plus proposals.css."""
+    js = slim_js("\n".join([src("selfcheck.js"), src("pages.js"), src("proposals.js")]))
+    parts = {
+        "CSP": csp(js),
+        "TITLE": html_escape(str(data.get("title") or "Page options") if isinstance(data, dict) else "Page options"),
+        "CSS": slim_css(src("style.css") + src("lite.css") + src("proposals.css")),
+        "DATA": json.dumps(data, ensure_ascii=False, separators=(",", ":")).replace("<", "\\u003c"),
+        "JS": js,
+    }
+    html = re.sub(r"@(CSP|TITLE|CSS|DATA|JS)\b", lambda m: parts[m.group(1)], PROPOSALS_SHELL)
+    if html.lower().count("</script") != 2 or html.lower().count("</style") != 1:
+        sys.exit("proposals: inlined code or data closes a script or style tag")
+    if re.findall(r"<script data-lite>(.*?)</script>", html, re.S) != [js]:
+        sys.exit("proposals: the page's script isn't the one its CSP hash allows")
+    return html.replace("@HASH", code_hash(html), 1)
+
+
 def main() -> None:
     ap = argparse.ArgumentParser(description=__doc__.split("\n")[0])
     ap.add_argument("--data", type=Path, default=EXAMPLE, help="data block to embed (default: examples/maya)")
@@ -157,11 +205,13 @@ def main() -> None:
     ap.add_argument("--check", action="store_true")
     a = ap.parse_args()
     pages = {a.out: build(json.loads(a.data.read_text(encoding="utf-8")))}
-    if a.out == OUT and a.data == EXAMPLE:  # the repo's own build: the viewer too
+    if a.out == OUT and a.data == EXAMPLE:  # the repo's own build: the page options and the viewer too
+        pages[PROPOSALS_OUT] = build_proposals(json.loads(PROPOSALS_EXAMPLE.read_text(encoding="utf-8")))
         pages[VIEWER_OUT] = build_viewer()
     if a.check:
-        if a.out.exists() and (problem := marker_problem(a.out.read_text(encoding="utf-8"))):
-            sys.exit(f"{a.out} {problem}")
+        for path in (a.out, PROPOSALS_OUT if PROPOSALS_OUT in pages else None):
+            if path and path.exists() and (problem := marker_problem(path.read_text(encoding="utf-8"))):
+                sys.exit(f"{path} {problem}")
         stale = [str(p) for p, html in pages.items() if not p.exists() or p.read_text(encoding="utf-8") != html]
         if stale:
             sys.exit(f"{', '.join(stale)} out of date: run python3 dashboard/build.py")

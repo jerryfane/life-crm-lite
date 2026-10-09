@@ -15,6 +15,8 @@ Optional inputs (the build works without each one and shows "coming soon"):
     skill/SKILL.md       the full skill: shown at /skill/, raw at /SKILL.md (what Claude fetches, served unchanged)
     dashboard/dist/dashboard.html   the dashboard: a preview at /dashboard/ (example data without Claude), and
                                     /dashboard/dashboard.html, the fallback download when Claude can't fetch it
+    dashboard/dist/proposals.html   the page options (4 drafts of a new page): /dashboard/proposals.html, the
+                                    fallback download when Claude can't fetch it (with Maya's example options)
     viewer/              the viewer: copied to /viewer/
     examples/<name>/     transcript.md (shown at /examples/<name>/), data.json, crm.xlsx;
                          <name> must match [a-z0-9-]+, other folders are skipped with a warning
@@ -23,7 +25,7 @@ Output layout:
     /                    room page
     /skill/  /SKILL.md   the full skill, readable and raw (/skill.txt: the same raw text, shown by every browser)
     /viewer/             viewer (or a "coming soon" page)
-    /dashboard/          the dashboard preview, when it exists
+    /dashboard/          the dashboard preview, when it exists; /dashboard/proposals.html, the page options
     /examples/<name>/    each example transcript, plus its data files
     /dashboard-maya.webp the hero picture
     /qr.svg  /qr.png     QR code of the room page URL, made at build time
@@ -310,6 +312,9 @@ def build(out: Path, root: Path = ROOT) -> None:
         (out / "dashboard").mkdir()
         shutil.copy2(dashboard, out / "dashboard" / "index.html")
         shutil.copy2(dashboard, out / "dashboard" / "dashboard.html")
+        proposals = root / "dashboard" / "dist" / "proposals.html"
+        if proposals.is_file():
+            shutil.copy2(proposals, out / "dashboard" / "proposals.html")
     else:
         soon("The dashboard", "The dashboard preview is coming soon. It will be here before Sunday’s training.",
              out / "dashboard" / "index.html")

@@ -110,11 +110,11 @@ The last row is always the People page:
 
 #### Layouts
 
-How a list's page looks in the dashboard (and the viewer):
+How a list's page looks in the dashboard (and the viewer, and the page options file `dashboard/dist/proposals.html`):
 
 - `table` (the default): one row per item; tap a row for all its details.
 - `cards`: one card per item, the first one or two short columns as tags, a longer column as text.
-- `board`: one column per status, cards inside, in the order of `statuses`; a status not in `statuses` gets its own column after them, and items without one go last. Empty columns show too. It needs a column named `status` (without one the page is a table). No dragging: a card moves when its `status` changes in the sheet.
+- `board`: one column per status, cards inside, in the order of `statuses`; a status not in `statuses` gets its own column after them, and items without one go last. Empty columns show too. It needs a column named `status`, read like any header (`Status (stage)` counts); without one the page is a table. With `statuses` set, an empty board still shows its columns. No dragging: a card moves when its `status` changes in the sheet.
 - `feed`: dated updates, newest first.
 
 `table` is the default, so a list with `layout: table` comes back from the sheet without the key. In the full kit, `board` shows as a table with a warning ("layout 'board' is not table/cards/feed; using table"); it uses `statuses` to sort and warns about rows whose status isn't in it.
