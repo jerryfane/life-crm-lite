@@ -6,7 +6,8 @@
 
 Required:
     site/src/            the room page (index.html), the shell of the other pages (shell.html), style.css, room.js,
-                         dashboard-maya.webp (the hero picture: /dashboard/ with Maya's example, 2560x1600)
+                         dashboard-maya.webp (the hero picture: /dashboard/ with Maya's example, 2560x1600),
+                         video-poster.webp (the walkthrough video's poster, from YouTube's maxresdefault.jpg, 1280x720)
     skill/PROJECT.md     the short Project instructions: copied by the big button and shown next to it;
                          exactly PROJECT_LINE (the verified line that curls SKILL_RAW_URL, the full skill)
 
@@ -54,7 +55,7 @@ SKILL_RAW_URL = "https://raw.githubusercontent.com/jerryfane/life-crm-lite/main/
 # The one Project instruction Jerry verified in claude.ai. skill/PROJECT.md must be exactly this line: any other
 # wording (a ?v= query, the site URL, a second command) is untested and could load something else.
 PROJECT_LINE = f"At the start of every chat, run `curl -sL {SKILL_RAW_URL}` in your sandbox and follow what it says."
-SRC_FILES = ("index.html", "shell.html", "style.css", "room.js", "dashboard-maya.webp")
+SRC_FILES = ("index.html", "shell.html", "style.css", "room.js", "dashboard-maya.webp", "video-poster.webp")
 EXAMPLE_NAME = re.compile(r"[a-z0-9-]+")  # used in URLs and file paths, so kept plain
 
 sys.path.insert(0, str(HERE / "vendor"))
@@ -271,7 +272,7 @@ def build(out: Path, root: Path = ROOT) -> None:
         sys.exit(f"site/src/ is required and is missing {', '.join(missing)}: the room page can't be built without it.")
     shutil.rmtree(out, ignore_errors=True)
     out.mkdir(parents=True)
-    for name in ("style.css", "room.js", "dashboard-maya.webp"):
+    for name in ("style.css", "room.js", "dashboard-maya.webp", "video-poster.webp"):
         shutil.copy2(SRC / name, out / name)
 
     # The short Project instructions: the big button copies them; they load the full skill from SKILL_RAW_URL.

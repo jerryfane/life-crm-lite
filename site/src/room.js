@@ -27,4 +27,18 @@
     });
   });
 
+  // Walkthrough video: click to load. The page asks nothing of YouTube until Play (a button, so Enter and Space work too).
+  document.querySelectorAll('[data-video]').forEach((btn) => {
+    btn.addEventListener('click', () => {
+      const f = document.createElement('iframe');
+      f.src = btn.dataset.video;
+      f.title = btn.dataset.videoTitle;
+      f.allow = 'autoplay; encrypted-media; picture-in-picture; fullscreen';
+      f.allowFullscreen = true;
+      f.referrerPolicy = 'strict-origin-when-cross-origin';
+      btn.replaceWith(f);
+      f.focus();
+    });
+  });
+
 })();
