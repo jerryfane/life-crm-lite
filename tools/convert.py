@@ -70,6 +70,9 @@ TOP_KEYS = {"lite", "title", "owner", "updated", "tone", "toneLine", "sheet", "a
 RESERVED_TABS = {"timelines", "steps", "settings", "collections", "people", "profile", "entries"}
 PEOPLE_ID = "people"
 STATUSES = {"todo", "doing", "waiting", "stuck", "done"}
+# A list's `layout` (its Collections `layout` cell): how its page looks. Not set = table. The full kit
+# (life-crm apps/lifecrm/dashboard.py) knows table, cards and feed; it shows a board as a table, with a warning.
+LAYOUTS = ["table", "cards", "board", "feed"]
 LEVELS = {"high", "low"}
 TONES = {"kick", "caring", "motivational", "none"}
 COLORS = {"teal", "indigo", "amber", "blue", "pink", "green", "violet", "red", "orange", "gray"}
@@ -488,6 +491,13 @@ def validate(data: dict) -> list[str]:
         if any(not header_key(c) or re.search(r"[,|]", c) for c in columns):
             out.append(f"list {lst.get('id')}: column names must not be empty or contain , or |")
         out += [f"list {lst.get('id')}: {c}" for c in key_collisions(columns, lst.get("rows") or [])]
+        layout = lst.get("layout")
+        if layout is not None and layout not in LAYOUTS:
+            out.append(f"list {lst.get('id')}: layout must be one of {', '.join(LAYOUTS)}, not {layout!r}")
+        if layout == "board" and not any(header_key(c) == "status" for c in columns):
+            out.append(f"list {lst.get('id')}: a board needs a column named status (its values are the board's columns)")
+        if lst.get("statuses") is not None and not isinstance(lst.get("statuses"), str):
+            out.append(f"list {lst.get('id')}: statuses is text, the board's columns in order, e.g. \"idea, writing, done\"")
     for p in data.get("people") or []:
         if not p.get("name"):
             out.append(f"person {p}: needs a name")

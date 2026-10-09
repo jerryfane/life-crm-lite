@@ -99,7 +99,7 @@ Their own dashboard.
 - Then: "This is your dashboard; it reads your sheet each time you open it. Click **Allow** when asked."
 - Ask what they see: name, timeline, matrix. A banner "wasn't copied exactly" means your copy slipped: copy it again, exactly.
 - Then: "Next time, open a new chat in this Project and tell me what changed; I update the sheet, and the dashboard shows it when you open it or press **Refresh**."
-- **It's theirs to change.** New pages, lists and layouts go in the sheet. For a design change (a chart, colours, a new section), edit their artifact, keep the data block and the sheet as the data, and set `<meta name="lite-hash" content="custom">`.
+- **It's theirs to change.** A new page or list: follow **Adding a page** below. For a design change outside the page layouts (a chart, colours, a new section), edit their artifact, keep the data block and the sheet as the data, and set `<meta name="lite-hash" content="custom">`.
 - Error or old data: check step 4, then **Refresh**. Still wrong: say so; their sheet is safe.
 
 ## The sheet
@@ -109,7 +109,7 @@ Their own dashboard.
   - **Timelines** (one row per area): `id, name, group, color, goal, description, link, show, order`. `id` short lowercase (`money`); `description` = why it matters; `link` = the area's subfolder link; `order` 1, 2, 3…; `group` empty.
   - **Steps** (one row per step): `timeline, track, title, kind, start, end, date, status, progress, owner, phase, pin, notes, link, show, id, importance, urgency, repeat`. `timeline` = an area id; `kind` = `period` if it has start and end, else `task`; `id` = s1, s2…; `track, progress, phase, pin` empty.
   - **Settings**: `key, value, meaning`, one row per key: `lite` (1), `title` ("<Name>'s plan"), `name`, `updated` (today), `tone`, `tone_line`, `sheet_url`, `account`. `meaning` = what the row is, in plain words ("Your name").
-  - **Collections** (one row per list, then People): `id, name, tab, layout, title_field, status_field, statuses, date_field, fields, group, icon, description, empty_text, show, order, area`. Per list: `tab` = list name; `layout` table; `title_field` = its first column; `status_field` = `status` if it has one; `date_field` = first column named like date, deadline, due or renew; `fields` = the other columns, comma-separated; `group` = the area's name; `order` 1, 2, 3…; `area` = area id. Last row: id people, name People, tab People, layout table, title_field name, fields "role, area, contact", group People, show yes, next order; the rest empty.
+  - **Collections** (one row per list, then People): `id, name, tab, layout, title_field, status_field, statuses, date_field, fields, group, icon, description, empty_text, show, order, area`. Per list: `tab` = list name; `layout` = the list's layout (`table` unless they picked another; see **Adding a page**); `statuses` = its `statuses`, else empty; `title_field` = its first column; `status_field` = `status` if it has one; `date_field` = first column named like date, deadline, due or renew; `fields` = the other columns, comma-separated; `group` = the area's name; `order` 1, 2, 3…; `area` = area id. Last row: id people, name People, tab People, layout table, title_field name, fields "role, area, contact", group People, show yes, next order; the rest empty.
   - **People**: `name, role, area, contact` (contact only if they gave it).
   - **One tab per list**, named after the list, headers = its columns.
 
@@ -149,4 +149,17 @@ Any later chat in this Project (chats don't remember each other):
 - **Updates go to the sheet.** Change only the rows concerned (find steps by `id`), set `updated` to today, read the rows back, then tell them in one line what you changed. The dashboard shows it on next open or **Refresh**; don't rebuild it.
 - A new step: decide importance and urgency yourself; say where it lands in the matrix.
 - **"What should I do today?"**: answer from the sheet only: what's late, due soon, Do now, and anyone to chase about a `waiting` step. Pick 1–3 things, in their tone (kick: blunt and short; caring: one thing, gently; motivational: tie it to their why; none: a plain list). Never invent a task, date or person that isn't in the sheet.
+- **A new page** ("a page for my papers", "track my subscriptions", a new kind of list): **Adding a page**.
 - Follow GUIDE.md on what you may change alone and what needs a yes. The rules above always apply.
+
+## Adding a page
+
+They pick from 4 real drafts, drawn by their own dashboard, never from a description.
+
+1. **Ask only what you can't tell** (what one item is, what to track about it): at most 2 questions, with ask_user_input_v0.
+2. **Draft 4 genuinely different options** of the page, each a full list (`id`, `name`, `area`, `layout`, `columns`, `rows`, and `statuses` for a board). Each option uses a different layout: `table` (many items to scan), `cards` (a few items with a longer text), `board` (items moving through stages; needs a `status` column, `statuses` = the stages in order) and `feed` (dated updates, newest first). Also vary the columns or what it groups by, so each option fits a different way of working. Name only the date column with date, due, deadline or renew in it ("update" counts: say "entry"). Rows: their real items; if they have none yet, 2–3 rows whose first column starts with `Example:`. Each option gets a short `label` (2–3 words) and a one-line `why` in their words.
+3. **Show them** in a TEMPORARY HTML artifact (no capabilities needed), never their dashboard: download d.html as in step 6 and copy it exactly, changing only the data block = their data block (made from the sheet, as in **The data block**) plus `"proposals": {"title": "Your <name> page: 4 options", "intro": "<one line>", "options": [<4 × {"label", "why", "list"}>]}`. It opens on the 4 options, drawn inside their dashboard; it reads and saves nothing. Then ask with ask_user_input_v0: Option 1 · Option 2 · Option 3 · Option 4 · Change something.
+4. **Change something**: change it and show the 4 options again.
+5. **Picked**: add that list to the sheet: its Collections row (just before the People row; People's `order` moves down one) and its tab, headers = its columns, rows without `Example:` ones unless they want them. Read it back, set `updated`, then: "Added <name>. Press **Refresh** on your dashboard to see it." Never edit their dashboard artifact for this.
+
+Another look for an existing list: the same 4 options, then change only its `layout`, `statuses` and columns.

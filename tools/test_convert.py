@@ -185,5 +185,45 @@ class Formulas(unittest.TestCase):
             self.assertEqual(convert.diff(data, convert.from_workbook(wb)), [])
 
 
+class Layouts(unittest.TestCase):
+    def papers(self, data: dict) -> dict:
+        return next(lst for lst in data["lists"] if lst["id"] == "papers")
+
+    def test_board_with_statuses_round_trips_through_the_collections_row(self):
+        data = maya()
+        self.papers(data).update(layout="board", statuses="idea, writing, submitted, accepted")
+        self.assertEqual(convert.validate(data), [])
+        with tempfile.TemporaryDirectory() as tmp:
+            wb = load_workbook(save(data, tmp))
+            head = [c.value for c in wb["Collections"][1]]
+            row = next(r for r in wb["Collections"].iter_rows(min_row=2, values_only=True) if r[0] == "papers")
+            self.assertEqual(row[head.index("layout")], "board")
+            self.assertEqual(row[head.index("statuses")], "idea, writing, submitted, accepted")
+            self.assertEqual(row[head.index("status_field")], "status")
+            self.assertEqual(convert.diff(data, convert.from_workbook(wb)), [])
+
+    def test_every_layout_round_trips_and_table_is_the_default(self):
+        for layout in ["cards", "board", "feed"]:
+            data = maya()
+            self.papers(data)["layout"] = layout
+            self.assertEqual(convert.diff(data, round_trip(data)), [], layout)
+        data = maya()
+        self.papers(data)["layout"] = "table"
+        self.assertNotIn("layout", self.papers(round_trip(data)))  # the default: written, not brought back
+        self.assertEqual(convert.diff(maya(), round_trip(maya())), [])
+
+    def test_unknown_layout_board_without_status_and_list_statuses_are_invalid(self):
+        data = maya()
+        self.papers(data)["layout"] = "kanban"
+        self.assertTrue(any("layout must be one of table, cards, board, feed" in p for p in convert.validate(data)))
+        data = maya()
+        self.papers(data).update(layout="board", columns=["paper", "type", "supervisor"])
+        self.assertTrue(any("a board needs a column named status" in p for p in convert.validate(data)))
+        data = maya()
+        self.papers(data)["statuses"] = ["idea", "writing"]
+        self.assertTrue(any("statuses is text" in p for p in convert.validate(data)))
+
+
+
 if __name__ == "__main__":
     unittest.main(verbosity=2)

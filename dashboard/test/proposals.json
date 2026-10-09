@@ -1,0 +1,42 @@
+{
+  "title": "Your Papers page: 4 options",
+  "intro": "Same two papers, four ways to see them. Pick the one that fits how you work on them.",
+  "options": [
+    {
+      "label": "Table",
+      "why": "Every paper on one line, easy to scan when the list grows.",
+      "list": {"id": "papers", "name": "Papers", "area": "research", "layout": "table",
+        "columns": ["paper", "type", "status", "supervisor", "next step"],
+        "rows": [
+          {"paper": "Vitamin D and recovery after appendectomy", "type": "Original article", "status": "writing", "supervisor": "Dr. Navarro", "next step": "Finish the methods section"},
+          {"paper": "A case from the urology rotation", "type": "Case report", "status": "idea", "supervisor": "", "next step": "Ask a supervisor"}]}
+    },
+    {
+      "label": "Cards",
+      "why": "One card per paper with what it is about, for when you have only a few.",
+      "list": {"id": "papers", "name": "Papers", "area": "research", "layout": "cards",
+        "columns": ["paper", "status", "type", "supervisor", "about"],
+        "rows": [
+          {"paper": "Vitamin D and recovery after appendectomy", "status": "writing", "type": "Original article", "supervisor": "Dr. Navarro", "about": "Retrospective look at vitamin D levels and recovery time after appendectomy."},
+          {"paper": "A case from the urology rotation", "status": "idea", "type": "Case report", "supervisor": "", "about": "An unusual case from the urology rotation, not written up yet."}]}
+    },
+    {
+      "label": "Board",
+      "why": "A column per stage, so you see what moves next from idea to accepted.",
+      "list": {"id": "papers", "name": "Papers", "area": "research", "layout": "board", "statuses": "idea, writing, submitted, accepted",
+        "columns": ["paper", "status", "type", "supervisor"],
+        "rows": [
+          {"paper": "Vitamin D and recovery after appendectomy", "status": "writing", "type": "Original article", "supervisor": "Dr. Navarro"},
+          {"paper": "A case from the urology rotation", "status": "idea", "type": "Case report", "supervisor": ""}]}
+    },
+    {
+      "label": "Progress log",
+      "why": "A dated note each time a paper moves, newest first, like a lab notebook.",
+      "list": {"id": "papers", "name": "Papers", "area": "research", "layout": "feed",
+        "columns": ["entry", "date", "note", "paper"],
+        "rows": [
+          {"entry": "Example: methods section drafted", "date": "2026-10-08", "paper": "Vitamin D and recovery after appendectomy", "note": "Example row: replace it with your first real update."},
+          {"entry": "Example: case picked", "date": "2026-10-02", "paper": "A case from the urology rotation", "note": "Example row: replace it with your first real update."}]}
+    }
+  ]
+}
