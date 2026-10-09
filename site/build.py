@@ -8,7 +8,7 @@ Required:
     site/src/            the room page (index.html), the shell of the other pages (shell.html), style.css, room.js,
                          dashboard-maya.webp (the hero picture: /dashboard/ with Maya's example, 2560x1600)
     skill/PROJECT.md     the short Project instructions: copied by the big button and shown next to it;
-                         they must contain both SKILL_URLS, where Claude loads the full skill from
+                         they must contain SKILL_URL, where Claude reads the full skill
 
 Optional inputs (the build works without each one and shows "coming soon"):
     skill/SKILL.md       the full skill: shown at /skill/, raw at /SKILL.md (what Claude fetches, served unchanged)
@@ -44,8 +44,9 @@ HERE = Path(__file__).resolve().parent
 ROOT = HERE.parent
 SRC = HERE / "src"
 SITE_URL = "https://life-crm-lite.jerryfane.com/"
-# PROJECT.md tells Claude to fetch the skill from the first URL, or with curl from the second.
-SKILL_URLS = (SITE_URL + "SKILL.md", "https://raw.githubusercontent.com/jerryfane/life-crm-lite/main/skill/SKILL.md")
+# PROJECT.md tells Claude to read the skill at SKILL_URL; the room page's troubleshooting offers SKILL_RAW_URL (curl).
+SKILL_URL = SITE_URL + "SKILL.md"
+SKILL_RAW_URL = "https://raw.githubusercontent.com/jerryfane/life-crm-lite/main/skill/SKILL.md"
 SRC_FILES = ("index.html", "shell.html", "style.css", "room.js", "dashboard-maya.webp")
 EXAMPLE_NAME = re.compile(r"[a-z0-9-]+")  # used in URLs and file paths, so kept plain
 
@@ -266,14 +267,13 @@ def build(out: Path, root: Path = ROOT) -> None:
     for name in ("style.css", "room.js", "dashboard-maya.webp"):
         shutil.copy2(SRC / name, out / name)
 
-    # The short Project instructions: the big button copies them; they load the full skill from SKILL_URLS.
+    # The short Project instructions: the big button copies them; they load the full skill from SKILL_URL.
     project_md = root / "skill" / "PROJECT.md"
     if not project_md.is_file():
         sys.exit("skill/PROJECT.md is required: it's what people paste as their Project's instructions.")
     project = project_md.read_text()
-    missing_urls = [u for u in SKILL_URLS if u not in project]
-    if missing_urls:
-        sys.exit(f"skill/PROJECT.md must contain {' and '.join(missing_urls)}: Claude loads the skill from there.")
+    if SKILL_URL not in project:
+        sys.exit(f"skill/PROJECT.md must contain {SKILL_URL}: Claude loads the skill from there.")
 
     # The full skill: /skill/ shows it, /SKILL.md is the raw file Claude fetches.
     skill_md = root / "skill" / "SKILL.md"
@@ -347,6 +347,7 @@ def build(out: Path, root: Path = ROOT) -> None:
         # The parser drops one newline right after <textarea>, so keep the first line intact.
         "PROJECT_TEXT": "\n" + html.escape(project),
         "PROJECT_SHOWN": html.escape(project.strip()),
+        "SKILL_RAW_URL": html.escape(SKILL_RAW_URL),
         "EXAMPLES": example_cards(found),
         "DASHBOARD_STEP": dashboard_step(has_dashboard, has_sheet_flow),
         "SITE_URL": attr(SITE_URL),

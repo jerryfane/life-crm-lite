@@ -45,12 +45,11 @@
             <button class="btn" type="button" data-copy-skill disabled><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="8" y="8" width="12" height="12" rx="3" fill="none" stroke="currentColor" stroke-width="2"/><path d="M16 8V6a2 2 0 0 0-2-2H6a2 2 0 0 0-2 2v8a2 2 0 0 0 2 2h2" fill="none" stroke="currentColor" stroke-width="2"/></svg>Copy the instructions</button>
             <a class="more" href="/dashboard/">See the dashboard</a>
           </div>
-          <p class="copied" data-copied role="status">{{SKILL_NOTE}}</p>
-          <div class="instr">
-            <details data-instr><summary>See what you paste</summary><pre>{{PROJECT_SHOWN}}</pre></details>
-            <a href="/skill/">Read the full skill</a>
-          </div>
           <textarea data-skill hidden readonly aria-hidden="true">{{PROJECT_TEXT}}</textarea>
+        </div>
+        <div class="under">
+          <p class="copied" data-copied role="status">{{SKILL_NOTE}}</p>
+          <p class="instr"><span>You paste:</span> <code data-instr>{{PROJECT_SHOWN}}</code> <a href="/skill/">Read the full skill</a></p>
         </div>
       </div>
       <figure class="hero-shot">
@@ -155,6 +154,8 @@
           <h3>Turn them on in your chat</h3>
           <p>In the chat, click <b>+</b> (bottom left of the message box) › <b>Connectors</b>, and switch on <b>Google Drive</b> and <b>Google Sheets</b>. Claude needs both.</p>
           <p class="fine">Editing Google Sheets is a beta in Claude, on the website and the desktop app.</p>
+          <h3>If something goes wrong</h3>
+          <p>If Claude says it can’t read the instructions: in the chat, ask it to run <code>curl -sL {{SKILL_RAW_URL}}</code> and follow that.</p>
           <h3>Use a different Google account</h3>
           <ol>
             <li>Go to <b>Customize › Connectors</b> and click <b>Google Drive</b> under “Your connectors”.</li>

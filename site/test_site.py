@@ -108,26 +108,28 @@ class Build(unittest.TestCase):
         with contextlib.redirect_stdout(io.StringIO()):
             build.build(out)
         project = (build.ROOT / "skill" / "PROJECT.md").read_text()
-        for url in build.SKILL_URLS:
-            self.assertIn(url, project)
+        self.assertEqual(project.strip(), f"At the start of every chat, read {build.SKILL_URL} and follow it.")
         index = (out / "index.html").read_text()
         copied = re.search(r'<textarea data-skill[^>]*>(.*?)</textarea>', index, re.S).group(1)
         self.assertEqual(html.unescape(copied).removeprefix("\n"), project)  # the parser drops that first newline
-        # shown under the button, collapsed so the hero keeps its layout
-        self.assertIn(f'<details data-instr><summary>See what you paste</summary><pre>{html.escape(project.strip())}</pre></details>', index)
+        # shown as one line under the buttons
+        self.assertIn(f'<code data-instr>{html.escape(project.strip())}</code>', index)
+        self.assertNotIn("<details", index)
+        # the GitHub copy is the troubleshooting fallback, one line in the setup
+        self.assertIn(f"ask it to run <code>curl -sL {build.SKILL_RAW_URL}</code> and follow that.", index)
         self.assertIn('<a href="/skill/">Read the full skill</a>', index)
         self.assertIn("Copy the instructions", index)
         self.assertNotIn("Copy the skill", index)
         self.assertEqual((out / "SKILL.md").read_bytes(), (build.ROOT / "skill" / "SKILL.md").read_bytes())
         self.assertNotIn("data-copy-skill", (out / "skill" / "index.html").read_text())
 
-    def test_project_md_required_with_both_urls(self):
+    def test_project_md_required_with_skill_url(self):
         project = self.tmp / "skill" / "PROJECT.md"
-        text = project.read_text()
-        for url in build.SKILL_URLS:
-            project.write_text(text.replace(url, "https://example.com/SKILL.md"))
-            with self.assertRaises(SystemExit, msg=url):
-                self.run_build()
+        project.write_text(f"Read {build.SKILL_URL} and follow it.\n")
+        self.run_build()  # the GitHub URL is not required in PROJECT.md
+        project.write_text(f"Read {build.SKILL_RAW_URL} and follow it.\n")
+        with self.assertRaises(SystemExit):
+            self.run_build()
         project.unlink()
         with self.assertRaises(SystemExit):
             self.run_build()
@@ -175,7 +177,7 @@ class Build(unittest.TestCase):
             "[click](javascript:alert(3)) and [ok](https://e.example/?a=1&b=\"2) `<b>`\n\n| <i>a</i> |\n|---|\n| <svg> |\n")
         (self.tmp / "skill" / "SKILL.md").write_text("</textarea><script>alert(4)</script>\n{{EXAMPLES}}\n")
         (self.tmp / "skill" / "PROJECT.md").write_text(
-            "</textarea><script>alert(5)</script> {{EXAMPLES}} " + " ".join(build.SKILL_URLS) + "\n")
+            "</textarea><script>alert(5)</script> {{EXAMPLES}} " + build.SKILL_URL + "\n")
         self.add_dashboard()
 
         out, err = self.run_build()
