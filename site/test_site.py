@@ -3,7 +3,9 @@
 from __future__ import annotations
 
 import contextlib
+import html
 import io
+import re
 import shutil
 import tempfile
 import threading
@@ -73,6 +75,8 @@ class Build(unittest.TestCase):
     def setUp(self):
         self.tmp = Path(tempfile.mkdtemp())
         self.addCleanup(shutil.rmtree, self.tmp)
+        (self.tmp / "skill").mkdir()
+        shutil.copy2(build.ROOT / "skill" / "PROJECT.md", self.tmp / "skill" / "PROJECT.md")
 
     def run_build(self, **kw) -> tuple[Path, str]:
         out = self.tmp / "dist"
@@ -98,6 +102,34 @@ class Build(unittest.TestCase):
         # the hero picture is copied and used
         self.assertEqual((out / "dashboard-maya.webp").read_bytes(), (build.SRC / "dashboard-maya.webp").read_bytes())
         self.assertIn('src="/dashboard-maya.webp"', index)
+
+    def test_real_build_copies_project_md_and_serves_skill_md_unchanged(self):
+        out = self.tmp / "real"
+        with contextlib.redirect_stdout(io.StringIO()):
+            build.build(out)
+        project = (build.ROOT / "skill" / "PROJECT.md").read_text()
+        for url in build.SKILL_URLS:
+            self.assertIn(url, project)
+        index = (out / "index.html").read_text()
+        copied = re.search(r'<textarea data-skill[^>]*>(.*?)</textarea>', index, re.S).group(1)
+        self.assertEqual(html.unescape(copied).removeprefix("\n"), project)  # the parser drops that first newline
+        self.assertIn(f"<pre>{html.escape(project.strip())}</pre>", index)  # shown next to the button
+        self.assertIn('<a href="/skill/">Read the full skill</a>', index)
+        self.assertIn("Copy the instructions", index)
+        self.assertNotIn("Copy the skill", index)
+        self.assertEqual((out / "SKILL.md").read_bytes(), (build.ROOT / "skill" / "SKILL.md").read_bytes())
+        self.assertNotIn("data-copy-skill", (out / "skill" / "index.html").read_text())
+
+    def test_project_md_required_with_both_urls(self):
+        project = self.tmp / "skill" / "PROJECT.md"
+        text = project.read_text()
+        for url in build.SKILL_URLS:
+            project.write_text(text.replace(url, "https://example.com/SKILL.md"))
+            with self.assertRaises(SystemExit, msg=url):
+                self.run_build()
+        project.unlink()
+        with self.assertRaises(SystemExit):
+            self.run_build()
 
     def test_btn_label_is_white_in_every_link_state(self):
         css = (build.SRC / "style.css").read_text()
@@ -140,8 +172,9 @@ class Build(unittest.TestCase):
         (ok / "transcript.md").write_text(
             "# Zoe <img src=x onerror=alert(1)> {{BODY}}\n\nSay <script>alert(2)</script> and "
             "[click](javascript:alert(3)) and [ok](https://e.example/?a=1&b=\"2) `<b>`\n\n| <i>a</i> |\n|---|\n| <svg> |\n")
-        (self.tmp / "skill").mkdir()
         (self.tmp / "skill" / "SKILL.md").write_text("</textarea><script>alert(4)</script>\n{{EXAMPLES}}\n")
+        (self.tmp / "skill" / "PROJECT.md").write_text(
+            "</textarea><script>alert(5)</script> {{EXAMPLES}} " + " ".join(build.SKILL_URLS) + "\n")
         self.add_dashboard()
 
         out, err = self.run_build()
@@ -157,7 +190,7 @@ class Build(unittest.TestCase):
         index = pages[out / "index.html"]
         self.assertIn('href="/examples/zoe/"', index)
         self.assertEqual(index.count("<textarea"), 1)
-        self.assertIn("{{EXAMPLES}}", index)  # the skill text is not taken for a placeholder
+        self.assertEqual(index.count("{{EXAMPLES}}"), 2)  # the instructions (copied and shown) are not taken for a placeholder
 
 
 if __name__ == "__main__":
