@@ -9,15 +9,24 @@
   "use strict";
 
   const EMBEDDED = JSON.parse(document.getElementById("data").textContent);
-  // Without src/source.js (not connected): the embedded block, nothing can be written or asked.
-  const SRC = window.LiteSource || {
+  // A page-options preview (the embedded block has `proposals`): a temporary artifact made to pick a new page. It shows
+  // the embedded block only; it never reads or writes the sheet, storage or Claude.
+  const PREVIEW = !!EMBEDDED && EMBEDDED.proposals != null;
+  const SRC = PREVIEW ? {
+    load: async () => ({ data: EMBEDDED, source: "preview", at: "", label: "Preview: nothing here is saved" }),
+    markDone: async () => ({ ok: false, error: "This is a preview." }),
+    ask: async () => ({ text: "", error: "This is a preview." }),
+    readOnly: "A preview to pick a page: Ask and ticking steps work in your dashboard.",
+  } : window.LiteSource || {
+    // Without src/source.js (not connected): the embedded block, nothing can be written or asked.
     load: async () => ({ data: EMBEDDED, source: "embedded", at: new Date().toISOString() }),
     markDone: async () => ({ ok: false, error: "not connected to your Drive" }),
     ask: async () => ({ text: "", error: "not connected to Claude" }),
   };
-  let LITE = null, META = {}, DATA;
+  let LITE = null, META = {}, DATA, proposalsSeen = false;
   const app = document.getElementById("app");
   const NAMED_COLORS = new Set(["teal", "indigo", "amber", "blue", "pink", "green", "violet", "red", "orange", "gray"]);
+  const LAYOUTS = ["table", "cards", "board", "feed"];
   const DAY = 86400000, WEEK = 7 * DAY, ZOOM_WEEKS = 13;
   const ROW_H = 32, ITEM_H = 26, LANE_PAD = 7, GAP = 12;
 
@@ -118,25 +127,69 @@
       else if (d || b || a) { const w = d || b || a; Object.assign(st, { date: s.repeat && !w[1] ? nextDue(w[0], s.repeat) : w[0], approx: w[1] }); }
       return st;
     });
-    const page = (id, name, group, cols, rows, layout) => {
+    const listPage = (l, group) => {
+      const cols = (l.columns || []).map(String), rows = l.rows || [], id = l.id;
       const status = cols.find((c) => c.toLowerCase() === "status") || "", date = cols.find((c) => /date|deadline|due|renew/i.test(c)) || "";
+      const layout = String(l.layout || "").toLowerCase();
       return {
-        id, name, tab: name, layout: ["cards", "feed"].includes(layout) ? layout : "table", group, icon: id === "people" ? "heart" : "",
-        description: "", empty: "", title_field: cols[0] || "", status_field: status, date_field: date, statuses: [],
+        id, name: l.name, tab: l.name, group, icon: id === "people" ? "heart" : "",
+        // a board needs a status column to make its columns from; without one it is a table
+        layout: LAYOUTS.includes(layout) && (layout !== "board" || status) ? layout : "table",
+        description: "", empty: "", title_field: cols[0] || "", status_field: status, date_field: date,
+        // board columns and the sort order, as in the full kit's Collections `statuses`: "idea, writing | submitted"
+        statuses: typeof l.statuses === "string" ? l.statuses.split(/[|,]/).map((s) => s.trim().toLowerCase()).filter(Boolean) : [],
         fields: cols.slice(1), labels: {}, items: rows.map((r, k) => {
           const values = Object.fromEntries(Object.entries(r).map(([f, v]) => [f, v == null ? "" : String(v)]));
           const dd = fixDate(values[date]);
-          return { row: k + 2, title: values[cols[0]] || "", values, status: (values[status] || "").toLowerCase(), date: dd ? dd[0] : "", approx: !!(dd && dd[1]) };
+          return { row: k + 2, title: values[cols[0]] || "", values, status: (values[status] || "").trim().toLowerCase(), date: dd ? dd[0] : "", approx: !!(dd && dd[1]) };
         }).filter((i) => i.title),
       };
     };
-    const cols = (L.lists || []).map((l) => page(l.id, l.name, (area.get(l.area) || {}).name || "Lists", l.columns || [], l.rows || [], l.layout));
-    if ((L.people || []).length) cols.push(page("people", "People", "People", ["name", "role", "area", "contact"],
-      L.people.map((p) => ({ ...p, area: (area.get(p.area) || {}).name || p.area || "" })), "table"));
-    return { name: L.owner || "", title: L.title || "My plan", settings: { window_start: "", window_months: 12 }, timelines: tls, steps: sts, collections: cols };
+    const groupOf = (l) => (area.get(l.area) || {}).name || "Lists";
+    const cols = (L.lists || []).map((l) => listPage(l, groupOf(l)));
+    if ((L.people || []).length) cols.push(listPage({ id: "people", name: "People", columns: ["name", "role", "area", "contact"],
+      rows: L.people.map((p) => ({ ...p, area: (area.get(p.area) || {}).name || p.area || "" })) }, "People"));
+    // Page options for a new page (docs/data-contract.md `proposals`): each option's list drawn by the same page renderer.
+    let proposals = null;
+    if (L.proposals != null) {
+      const problem = proposalProblem(L.proposals, L);
+      proposals = problem ? { error: problem } : {
+        title: L.proposals.title, intro: L.proposals.intro || "",
+        options: L.proposals.options.map((o) => ({ label: o.label, why: o.why, page: listPage(o.list, groupOf(o.list)) })),
+      };
+    }
+    return { name: L.owner || "", title: L.title || "My plan", settings: { window_start: "", window_months: 12 }, timelines: tls, steps: sts, collections: cols, proposals };
+  }
+  // The first reason the page options can't be shown, in plain words, or "".
+  function proposalProblem(P, L) {
+    const txt = (x) => typeof x === "string" && x.trim() !== "";
+    if (!P || typeof P !== "object" || Array.isArray(P)) return "\"proposals\" should be a { … } block with a title and 4 options";
+    if (!txt(P.title)) return "the proposals need a \"title\"";
+    if (P.intro != null && typeof P.intro !== "string") return "\"intro\" should be text";
+    if (!Array.isArray(P.options) || P.options.length !== 4) return `there should be exactly 4 options, not ${Array.isArray(P.options) ? P.options.length : "none"}`;
+    const areas = new Set((L.areas || []).map((a) => a && a.id));
+    for (const [k, o] of P.options.entries()) {
+      const w = `option ${k + 1}`, l = o && o.list;
+      if (!o || typeof o !== "object") return `${w} is empty`;
+      if (!txt(o.label)) return `${w} needs a short "label"`;
+      if (!txt(o.why)) return `${w} needs a "why" line`;
+      if (!l || typeof l !== "object" || Array.isArray(l)) return `${w} needs a "list"`;
+      if (!txt(l.id) || !txt(l.name)) return `${w}: the list needs an "id" and a "name"`;
+      if (l.id === "people") return `${w}: the id "people" is kept for People`;
+      if (l.area != null && l.area !== "" && !areas.has(l.area)) return `${w}: the area "${l.area}" isn't in "areas"`;
+      const cols = l.columns;
+      if (!Array.isArray(cols) || !cols.length || !cols.every((c) => txt(c) && !/[,|]/.test(c))) return `${w}: the list needs "columns": names, without , or |`;
+      if (l.rows != null && !(Array.isArray(l.rows) && l.rows.every((r) => r && typeof r === "object" && !Array.isArray(r)))) return `${w}: "rows" should be a list of { … } blocks`;
+      if (l.layout != null && !LAYOUTS.includes(l.layout)) return `${w}: layout "${l.layout}" should be ${LAYOUTS.join(", ")}`;
+      if (l.layout === "board" && !cols.some((c) => c.toLowerCase() === "status")) return `${w}: a board needs a "status" column`;
+      if (l.statuses != null && typeof l.statuses !== "string") return `${w}: "statuses" should be text, e.g. "idea, writing, submitted"`;
+    }
+    return "";
   }
   function setData(L, meta) {
     LITE = L; META = meta || META; DATA = adapt(L);
+    // a block with page options opens on them, once; after that the person moves around freely
+    if (DATA.proposals && !proposalsSeen) { proposalsSeen = true; route = "proposals"; }
     YEAR = monthRange(monthOf(TODAY), 12);
     timelines = DATA.timelines;
     byId = new Map(timelines.map((t) => [t.id, t]));
@@ -835,10 +888,10 @@
     return h("div", { class: "empty" }, h("b", {}, `No ${c.name.toLowerCase()} yet`),
       h("p", {}, c.empty || `Rows added to the ${c.tab} tab of your sheet appear here.`));
   }
-  function pageShell(title, sub, body) {
-    return h("div", { class: "page" }, h("div", { class: "panel ov" },
+  function panelShell(title, sub, body) {
+    return h("div", { class: "panel ov" },
       h("div", { class: "top" }, h("div", {}, h("h1", {}, title), sub ? h("p", {}, sub) : null)),
-      body, footer()));
+      body, footer());
   }
   // Order: position of the status in the Statuses list, then date, then sheet order. Feeds: newest first.
   function sorted(c) {
@@ -922,14 +975,71 @@
         i.values.link ? h("div", { class: "post-go" }, ext(i.values.link)) : null);
     }));
   }
-  function collectionPage(c) {
+  // Board: a column per status, in the order of the list's `statuses` (then any other status found, then items with
+  // none); empty columns show too, so the board says what comes next. Read-only: moving a card happens in the sheet.
+  const openCard = {};
+  function boardPage(c, list) {
+    const order = [...c.statuses];
+    for (const i of list) if (i.status && !order.includes(i.status)) order.push(i.status);
+    if (list.some((i) => !i.status)) order.push("");
+    const short = c.fields.filter((f) => f !== c.status_field && f !== c.date_field && list.every((i) => (i.values[f] || "").length <= 40)).slice(0, 2);
+    const open = list.includes(openCard[c.id]) ? openCard[c.id] : null;
+    const card = (i) => {
+      const on = i === open;
+      return h("li", {}, h("button", { type: "button", class: `bcard${on ? " sel" : ""}`, "aria-expanded": on ? "true" : "false",
+        onclick: () => { openCard[c.id] = on ? null : i; render(); } },
+        h("b", {}, i.title),
+        short.map((f) => (i.values[f] ? h("span", { class: "bmeta" }, i.values[f]) : null)),
+        i.date ? h("span", { class: "bdate" }, cell(c, i, c.date_field)) : null),
+        on ? h("div", { class: "bdetail" }, ext(i.values.link), detailBody(c, i)) : null);
+    };
+    return h("div", { class: "board" }, order.map((s) => {
+      const items = list.filter((i) => i.status === s);
+      return h("section", { class: "bcol", "aria-label": s ? cap(s) : "No status" },
+        h("header", {}, s ? statusTag(s) : tag("No status"), h("span", { class: "n" }, items.length)),
+        items.length ? h("ul", {}, items.map(card)) : h("p", { class: "bnone" }, "Nothing here yet"));
+    }));
+  }
+  function collectionPanel(c) {
     const list = sorted(c);
-    if (!list.length) return pageShell(c.name, c.description, emptyState(c));
+    if (!list.length) return panelShell(c.name, c.description, emptyState(c));
     const counts = c.status_field && c.statuses.length
       ? c.statuses.map((s) => [s, list.filter((i) => i.status === s).length]).filter(([, n]) => n).map(([s, n]) => `${n} ${s}`).join(" · ")
       : `${list.length} item${list.length === 1 ? "" : "s"}`;
-    const body = c.layout === "cards" ? cardsPage(c, list) : c.layout === "feed" ? feedPage(c, list) : tablePage(c, list);
-    return pageShell(c.name, [c.description, counts].filter(Boolean).join(" · "), body);
+    const body = c.layout === "cards" ? cardsPage(c, list) : c.layout === "feed" ? feedPage(c, list) : c.layout === "board" ? boardPage(c, list) : tablePage(c, list);
+    return panelShell(c.name, [c.description, counts].filter(Boolean).join(" · "), body);
+  }
+  const collectionPage = (c) => h("div", { class: "page" }, collectionPanel(c));
+
+  // ---------- page options (`proposals`): pick one of 4 drafts of a new page ----------
+  // Each option's list is drawn by collectionPanel, exactly as the real page would be. The choice goes back to Claude
+  // in the chat; nothing here is saved.
+  let pick = 0, pickFocus = false;
+  function proposalsView() {
+    const P = DATA.proposals;
+    const hint = h("p", { class: "pp-hint" }, "Tell Claude which one you want (e.g. “option 2”), or what to change.");
+    if (P.error) {
+      return h("div", { class: "page" }, h("div", { class: "panel ov", role: "alert" },
+        h("div", { class: "top" }, h("div", {}, h("h1", {}, "These page options can't be shown"), h("p", {}, `${cap(P.error)}.`))),
+        h("p", { class: "pp-why" }, "Ask Claude to make the options again."), footer()));
+    }
+    pick = Math.min(Math.max(pick, 0), 3);
+    const choose = (k, focus) => { pick = (k + 4) % 4; pickFocus = focus; render(); };
+    const seg = h("div", { class: "pp-seg", role: "radiogroup", "aria-label": "Page options" }, P.options.map((o, k) =>
+      h("button", { type: "button", role: "radio", "aria-checked": k === pick ? "true" : "false", tabindex: k === pick ? "0" : "-1",
+        onclick: () => choose(k, false),
+        onkeydown: (ev) => {
+          const d = { ArrowRight: 1, ArrowDown: 1, ArrowLeft: -1, ArrowUp: -1 }[ev.key];
+          if (d) { ev.preventDefault(); choose(k + d, true); }
+          else if (ev.key === "Home" || ev.key === "End") { ev.preventDefault(); choose(ev.key === "Home" ? 0 : 3, true); }
+        } },
+        h("b", {}, `Option ${k + 1}`), h("span", {}, o.label))));
+    const o = P.options[pick];
+    return h("div", { class: "page pp" },
+      h("div", { class: "panel pp-bar" }, h("small", { class: "pp-k" }, "Page options"), h("h1", {}, P.title),
+        P.intro ? h("p", { class: "pp-intro" }, P.intro) : null, seg,
+        h("p", { class: "pp-why", "aria-live": "polite" }, h("b", {}, `Option ${pick + 1}: `), o.why)),
+      collectionPanel(o.page), hint);
   }
 
   // ---------- sidebar shell ----------
@@ -941,12 +1051,16 @@
       ico ? icon(ico) : null, lbl, extra || null);
     const count = (n) => (n ? h("span", { class: "n" }, n) : null);
     const groups = [];
+    const groupFor = (name) => { let g = groups.find((x) => x.name === name); if (!g) groups.push((g = { name, items: [] })); return g; };
+    // Page options: the proposed page sits where it will go (its area's group), marked, and leads back to the options.
+    const P = DATA.proposals, prop = P && !P.error ? P.options[pick].page : null;
+    const propLink = () => link("proposals", P.error ? "Page options" : prop.name, "list", h("span", { class: "tg tg-ind pp-tag" }, "Options"), key === "proposals", { class: "pp-link" });
     for (const c of COLLECTIONS) {
-      let g = groups.find((x) => x.name === c.group);
-      if (!g) groups.push((g = { name: c.group, items: [] }));
-      g.items.push(link(`p/${c.id}`, c.name, c.icon || (c.layout === "feed" ? "bell" : "list"),
+      if (prop && c.id === prop.id) { groupFor(c.group).items.push(propLink()); continue; }
+      groupFor(c.group).items.push(link(`p/${c.id}`, c.name, c.icon || (c.layout === "feed" ? "bell" : "list"),
         count(c.layout === "feed" ? recentCount(c) : c.items.length), key === `p:${c.id}`));
     }
+    if (P && !(prop && colById.has(prop.id))) groupFor(prop ? prop.group : "New page").items.push(propLink());
     const tls = timelines.map((t) => {
       const ns = nextStep(t.id);
       const booking = stepsOf(t.id).some((s) => s.status === "to book");
@@ -967,7 +1081,7 @@
   let current = null, lastRoute = null;
   // ---------- first run: connect a sheet; signed out: one calm message ----------
   // gate: "" (the dashboard), "loading", "no_sheet" (Connect screen), "no_runtime" (sign in).
-  let gate = window.LiteSource ? "loading" : "", sheet = null;
+  let gate = window.LiteSource && !PREVIEW ? "loading" : "", sheet = null;
   const conn = { url: "", err: "", busy: false };
   const sheetName = () => `${(LITE && LITE.owner || DATA && DATA.name || "").split(/\s+/)[0] || "Your"}'s life CRM`.replace(/^Your's/, "Your");
   // the sheet id of a pasted link, or "": LiteSource.sheetIdOf is the one parser (…/spreadsheets[/u/<n>]/d/<id>)
@@ -1048,10 +1162,12 @@
     const tid = t && decodeURIComponent(t[1]);
     if (tid && byId.has(tid)) { key = `t:${tid}`; title = byId.get(tid).name; }
     else if (p && colById.has(p[1])) { key = `p:${p[1]}`; title = colById.get(p[1]).name; }
+    else if (route === "proposals" && DATA.proposals) { key = "proposals"; title = "Page options"; }
     else route = "";
     if (key !== lastRoute) weekShift = 0;
     if (key.startsWith("t:")) view = focus(tid);
     else if (key.startsWith("p:")) view = { el: collectionPage(colById.get(p[1])), layout: () => {} };
+    else if (key === "proposals") view = { el: proposalsView(), layout: () => {} };
     else view = overview();
     const keepScroll = key === lastRoute ? window.scrollY : 0;
     shell.classList.remove("open");
@@ -1063,6 +1179,8 @@
     window.scrollTo(0, keepScroll);
     lastRoute = key;
     document.title = key === "roadmap" ? DATA.title : `${title} · ${DATA.title}`;
+    // arrow keys in the page options keep the focus on the chosen option across the redraw
+    if (pickFocus) { pickFocus = false; const b = shell.querySelector('.pp-seg [aria-checked="true"]'); if (b) b.focus(); }
   }
   // Only "no_runtime"/"no_sheet"/"no_data"/"broken", or an error with none of the viewer's data, leave the dashboard.
   // A read error with their saved copy (source "cache") shows that copy plus a note, also right after Connect.
